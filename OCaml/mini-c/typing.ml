@@ -32,13 +32,13 @@ let type_equiv t s =
 let type_expr env = function
   | Ptree.Econst 0l ->
   {
-    expr_node=Econst 0l;
-    expr_typ=Ttypenull;
+    expr_node = Econst 0l;
+    expr_typ = Ttypenull;
   }
   | Ptree.Econst n  ->
   {
-    expr_node=Econst n;
-    expr_typ=Ttypenull;
+    expr_node = Econst n;
+    expr_typ = Ttypenull;
    }
   | _         -> assert false
 
