@@ -13,7 +13,7 @@ type environment = {
 
 let string_of_type = function
   | Tint       -> "int"
-  | Tstructp x -> "struct " ^ x.str_name ^ " *"
+  | Tstructp x -> "struct " ^ x.str_name ^ "*"
   | Tvoidstar  -> "void*"
   | Ttypenull  -> "typenull"
 
@@ -30,8 +30,16 @@ let type_equiv t s =
     | _                       -> false
 
 let type_expr env = function
-  | Econst 0l -> (Econst 0l, Ttypenull)
-  | Econst n  -> (Econst n, Tint)
+  | Ptree.Econst 0l ->
+  {
+    expr_node=Econst 0l;
+    expr_typ=Ttypenull;
+  }
+  | Ptree.Econst n  ->
+  {
+    expr_node=Econst n;
+    expr_typ=Ttypenull;
+   }
   | _         -> assert false
 
 let type_type env = function
@@ -41,7 +49,9 @@ let type_type env = function
 
 let type_stmt env (s: Ptree.stmt) =
   match s.stmt_node with
-  | Ptree.Sreturn e -> Sskip
+  | Ptree.Sreturn e ->
+    let expr = type_expr env e.expr_node in
+    if (type_equiv (expr.expr_typ) (env.returnType)) then Sreturn(expr) else raise (Error("Wrong return type"))
   | _         -> assert false
 
 let rec type_decl_var_list env (pdv: Ptree.decl_var list) =
@@ -53,8 +63,6 @@ let type_block env (d, s) =
   (type_decl_var_list env d, List.map (type_stmt env) s)
 
 
-
-
 let program (p: Ptree.file) =
   let rec aux env = function
     | [] -> []
@@ -64,11 +72,18 @@ let program (p: Ptree.file) =
 
       )*)
     | (Ptree.Dfun d) :: q -> (
+        let fun_typ = type_type env d.fun_typ in
+        let new_env = {
+            vars = Hashtbl.create 15;
+            structs = env.structs;
+            funs = env.funs;
+            returnType = fun_typ;
+        } in
         let ttree_dfun = {
-          fun_typ = type_type env d.fun_typ;
+          fun_typ = fun_typ;
           fun_name = d.fun_name.id;
           fun_formals = type_decl_var_list env d.fun_formals;
-          fun_body = type_block env d.fun_body
+          fun_body = type_block new_env d.fun_body
         } in
         Hashtbl.add env.funs d.fun_name.id ttree_dfun;
         ttree_dfun :: (aux env q)
