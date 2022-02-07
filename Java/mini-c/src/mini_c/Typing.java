@@ -1,7 +1,6 @@
 package mini_c;
 
 import java.util.*;
-import java.util.function.Consumer;
 
 public class Typing implements Pvisitor {
 	
@@ -59,7 +58,12 @@ public class Typing implements Pvisitor {
 	}
 
 	@Override
-	public Tstructp visit(PTstruct n, Environement env) {
+	public Tpointer visit(Ppointer n, Environement env) {
+		return new Tpointer(n.accept(this, env).typ);
+	}
+
+	@Override
+	public Tstruct visit(PTypeStruct n, Environement env) {
 		return Environement.structs.get(n.id);
 	}
 
@@ -94,6 +98,14 @@ public class Typing implements Pvisitor {
 			case Unot : {
 				return new Eunop(Tint.INSTANCE, Unop.Unot,e);
 			}
+			case Uref:
+				if (e.typ instanceof Tpointer){
+					return new Eunop(((Tpointer)e.typ).typ, Unop.Uref, e);
+				} else {
+					throw new TypingException(n.loc, "Can't use & on a non pointer type (", e.typ,")");
+				}
+			case Uderef:
+				return new Eunop(new Tpointer(e.typ), Unop.Uderef, e);
 		}
 		return null;
 	}
@@ -104,8 +116,8 @@ public class Typing implements Pvisitor {
 		if (n.e1 instanceof Parrow){
 			Parrow parrow = (Parrow) n.e1;
 			Expr e1 = parrow.e.accept(this, env);
-			if (e1.typ instanceof Tstructp){
-				Tstructp tstructp = (Tstructp)e1.typ;
+			if (e1.typ instanceof Tstruct){
+				Tstruct tstructp = (Tstruct)e1.typ;
 				Field fieldTyp = tstructp.s.fields.get(parrow.f);
 				if (fieldTyp.field_typ.typeof(e2.typ)){
 					return new Eassign_field(fieldTyp.field_typ, e1, fieldTyp, e2);
@@ -162,8 +174,8 @@ public class Typing implements Pvisitor {
 	@Override
 	public Expr visit(Parrow n, Environement env) {
 		Expr e = n.e.accept(this, env);
-		if (e.typ instanceof Tstructp){
-			Tstructp tstructp = (Tstructp)e.typ;
+		if (e.typ instanceof Tstruct){
+			Tstruct tstructp = (Tstruct)e.typ;
 			Typ resultTyp = tstructp.s.fields.get(n.f).field_typ;
 			if (resultTyp != null){
 				return new Eaccess_field(resultTyp, e, new Field(n.f, resultTyp));
@@ -198,7 +210,7 @@ public class Typing implements Pvisitor {
 
 	@Override
 	public Expr visit(Psizeof n, Environement env) {
-		Tstructp typ = Environement.structs.get(n.id);
+		Tstruct typ = Environement.structs.get(n.id);
 		if (typ == null){
 			throw new RuntimeException("Struct inside of sizeof not defined");
 		} else {
@@ -274,7 +286,7 @@ public class Typing implements Pvisitor {
 			throw new RuntimeException("Struct already exists");
 		} else {
 			Structure structure = new Structure(n.s);
-			Environement.structs.put(n.s, new Tstructp(structure)); // Add the structure before typing the fields
+			Environement.structs.put(n.s, new Tstruct(structure)); // Add the structure before typing the fields
 			for (Pdeclvar pdeclvar : n.fl){
 				if (structure.fields.containsKey(pdeclvar.id)){
 					throw new RuntimeException("Two fields with the same name");
@@ -283,7 +295,7 @@ public class Typing implements Pvisitor {
 				}
 			}
 		}
-	}
+    }
 
 	@Override
 	public void visit(Pfun n, Environement env) {
@@ -322,7 +334,7 @@ public class Typing implements Pvisitor {
 class Environement{
 
 
-	public static HashMap<String, Tstructp> structs = new HashMap<>();
+	public static HashMap<String, Tstruct> structs = new HashMap<>();
 	public static HashMap<String, Decl_fun> functions = new HashMap<>();
 
 	public HashMap<String, Typ> locals;

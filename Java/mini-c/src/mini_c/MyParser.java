@@ -2,7 +2,7 @@ package mini_c;
 
 import java_cup.runtime.*;
 
-public class MyParser extends Parser {
+public class MyParser extends parser {
 
 	MyParser(Scanner scanner) {
 		super(scanner);

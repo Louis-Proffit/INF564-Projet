@@ -7,7 +7,7 @@ enum Binop {
 }
 
 enum Unop {
-	Uneg, Unot
+	Uneg, Unot, Uref, Uderef
 }
 
 // une classe pour les localisations
@@ -117,16 +117,28 @@ class PTint extends Ptype {
 	}
 }
 
-class PTstruct extends Ptype {
+class PTypeStruct extends Ptype {
 	String id;
 	Loc loc;
 
-	public PTstruct(Pstring id) {
+	public PTypeStruct(Pstring id) {
 		super();
 		this.id = id.id;
 		this.loc = id.loc;
 	}
-	Tstructp accept(Pvisitor v, Environement env) {
+	Tstruct accept(Pvisitor v, Environement env) {
+		return v.visit(this, env);
+	}
+}
+
+class Ppointer extends Ptype {
+	Ptype type;
+
+	public Ppointer(Ptype type) {
+		super();
+		this.type = type;
+	}
+	Tpointer accept(Pvisitor v, Environement env) {
 		return v.visit(this, env);
 	}
 }
@@ -357,7 +369,9 @@ interface Pvisitor {
 
 	public Tint visit(PTint n, Environement env);
 	
-	public Tstructp visit(PTstruct n, Environement env);
+	public Tstruct visit(PTypeStruct n, Environement env);
+
+	public Tpointer visit(Ppointer n, Environement env);
 	
 	public Expr visit(Pint n, Environement env);
 
@@ -387,9 +401,9 @@ interface Pvisitor {
 
 	public Stmt visit(Preturn n, Environement env);
 
-	public void visit(Pstruct n, Environement env);
-
 	public void visit(Pfun n, Environement env);
+
+	public void visit(Pstruct n, Environement env);
 
 	public File visit(Pfile n);
 }

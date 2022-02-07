@@ -130,6 +130,9 @@ hexa               = [:digit:] | [abcdefABCDEF]
     "&&"
     { return symbol(AMPAMP); }
 
+    "&"
+    { return symbol(AMP); }
+
     "int"
     { return symbol(INT); }
 

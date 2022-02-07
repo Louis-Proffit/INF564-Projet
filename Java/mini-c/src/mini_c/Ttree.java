@@ -1,10 +1,13 @@
 package mini_c;
 
+import mini_c.RTL.*;
+import mini_c.RTL.rtl_instructs.Register;
+
 import java.util.HashMap;
 import java.util.LinkedList;
 
 abstract class Typ {
-	abstract void accept(Visitor v);
+
 	abstract boolean typeof(Typ otherType);
 }
 
@@ -18,36 +21,49 @@ class Tint extends Typ {
 		return otherType == Tint.INSTANCE || otherType == Ttypenull.INSTANCE;
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
-	}
 	@Override
 	public String toString() {
 	  return "int";
 	}
 }
 
-class Tstructp extends Typ {
+class Tstruct extends Typ {
 
 	public Structure s;
 
-	Tstructp(Structure s) {
+	Tstruct(Structure s) {
 		this.s = s;
 	}
 
 	@Override
 	boolean typeof(Typ otherType) {
-		if (otherType instanceof Tstructp && ((Tstructp) otherType).s.str_name.equals(s.str_name))
+		if (otherType instanceof Tstruct && ((Tstruct) otherType).s.str_name.equals(s.str_name))
 			return true;
 		return otherType == Ttypenull.INSTANCE || otherType == Tvoidstar.INSTANCE;
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
-	}
 	@Override
 	public String toString() {
-	  return "struct " + s.str_name + "*";
+	  return "struct " + s.str_name;
+	}
+}
+
+class Tpointer extends Typ {
+
+	public Typ typ;
+
+	Tpointer(Typ typ) {
+		this.typ = typ;
+	}
+
+	@Override
+	boolean typeof(Typ otherType) {
+		return (otherType instanceof Tpointer && ((Tpointer) otherType).typ.typeof(typ));
+	}
+
+	@Override
+	public String toString() {
+		return typ.toString()+"*";
 	}
 }
 
@@ -58,13 +74,9 @@ class Tvoidstar extends Typ {
 	private Tvoidstar() {
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
-	}
-
 	@Override
 	boolean typeof(Typ otherType) {
-		return otherType == INSTANCE || otherType instanceof Tstructp;
+		return otherType == INSTANCE || otherType instanceof Tstruct;
 	}
 	@Override
 	public String toString() {
@@ -78,9 +90,6 @@ class Ttypenull extends Typ {
 	private Ttypenull() {
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
-	}
 	@Override
 	public String toString() {
 	  return "typenull";
@@ -88,17 +97,7 @@ class Ttypenull extends Typ {
 
 	@Override
 	boolean typeof(Typ otherType) {
-		if (otherType instanceof Ttypenull){
-			return true;
-		} else if (otherType instanceof Tint){
-			return true;
-		} else if (otherType instanceof Tstructp){
-			return true;
-		} else if (otherType instanceof  Tvoidstar){
-			return false;
-		} else {
-			return false;
-		}
+		return otherType == INSTANCE || otherType == Tint.INSTANCE || otherType instanceof Tstruct;
 	}
 }
 
@@ -109,11 +108,7 @@ class Structure {
 
 	Structure(String str_name) {
 		this.str_name = str_name;
-		this.fields = new HashMap<String, Field>();
-	}
-
-	void accept(Visitor v) {
-		v.visit(this);
+		this.fields = new HashMap<>();
 	}
 }
 
@@ -126,10 +121,6 @@ class Field {
 		this.field_name = field_name;
 		this.field_typ = field_typ;
 	}
-
-	void accept(Visitor v) {
-		v.visit(this);
-	}
 }
 
 class Decl_var {
@@ -139,10 +130,6 @@ class Decl_var {
 	Decl_var(Typ t, String i) {
 		this.t = t;
 		this.name = i;
-	}
-
-	void accept(Visitor v) {
-		v.visit(this);
 	}
 	
 	@Override
@@ -160,7 +147,7 @@ abstract class Expr {
 		this.typ = typ;
 	}
 
-	abstract void accept(Visitor v);
+	abstract Label accept(Visitor v, Label nextLabel, Register register);
 }
 
 class Econst extends Expr {
@@ -171,8 +158,8 @@ class Econst extends Expr {
 		this.i = i;
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
+	Label accept(Visitor v, Label nextLabel, Register register) {
+		return v.visit(this, nextLabel, register);
 	}
 }
 
@@ -184,8 +171,8 @@ class Eaccess_local extends Expr {
 		this.i = i;
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
+	Label accept(Visitor v, Label nextLabel, Register register) {
+		return v.visit(this, nextLabel, register);
 	}
 }
 
@@ -199,8 +186,8 @@ class Eaccess_field extends Expr {
 		this.f = f;
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
+	Label accept(Visitor v, Label nextLabel, Register register) {
+		return v.visit(this, nextLabel, register);
 	}
 }
 
@@ -214,8 +201,8 @@ class Eassign_local extends Expr {
 		this.e = e;
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
+	Label accept(Visitor v, Label nextLabel, Register register) {
+		return v.visit(this, nextLabel, register);
 	}
 }
 
@@ -231,8 +218,8 @@ class Eassign_field extends Expr {
 		this.e2 = e2;
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
+	Label accept(Visitor v, Label nextLabel, Register register) {
+		return v.visit(this, nextLabel, register);
 	}
 }
 
@@ -246,8 +233,8 @@ class Eunop extends Expr {
 		this.e = e;
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
+	Label accept(Visitor v, Label nextLabel, Register register) {
+		return v.visit(this, nextLabel, register);
 	}
 }
 
@@ -263,8 +250,8 @@ class Ebinop extends Expr {
 		this.e2 = e2;
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
+	Label accept(Visitor v, Label nextLabel, Register register) {
+		return v.visit(this, nextLabel, register);
 	}
 }
 
@@ -278,8 +265,8 @@ class Ecall extends Expr {
 		this.el = el;
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
+	Label accept(Visitor v, Label nextLabel, Register register) {
+		return v.visit(this, nextLabel, register);
 	}
 }
 
@@ -291,23 +278,23 @@ class Esizeof extends Expr {
 		this.s = s;
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
+	Label accept(Visitor v, Label nextLabel, Register register) {
+		return v.visit(this, nextLabel, register);
 	}
 }
 
 // instruction
 
 abstract class Stmt {
-	abstract void accept(Visitor v);
+	abstract Label accept(Visitor v, Label nextLabel);
 }
 
 class Sskip extends Stmt {
 	Sskip() {
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
+	Label accept(Visitor v, Label nextLabel) {
+		return v.visit(this, nextLabel);
 	}
 }
 
@@ -318,8 +305,8 @@ class Sexpr extends Stmt {
 		this.e = e;
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
+	Label accept(Visitor v, Label nextLabel) {
+		return v.visit(this, nextLabel);
 	}
 }
 
@@ -334,8 +321,8 @@ class Sif extends Stmt {
 		this.s2 = s2;
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
+	Label accept(Visitor v, Label nextLabel) {
+		return v.visit(this, nextLabel);
 	}
 }
 
@@ -348,8 +335,9 @@ class Swhile extends Stmt {
 		this.s = s;
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
+	@Override
+	Label accept(Visitor v, Label nextLabel) {
+		return v.visit(this, nextLabel);
 	}
 }
 
@@ -362,8 +350,8 @@ class Sblock extends Stmt {
 		this.sl = sl;
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
+	Label accept(Visitor v, Label nextLabel) {
+		return v.visit(this, nextLabel);
 	}
 }
 
@@ -374,8 +362,8 @@ class Sreturn extends Stmt {
 		this.e = e;
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
+	Label accept(Visitor v, Label nextLabel) {
+		return v.visit(this, nextLabel);
 	}
 }
 
@@ -395,8 +383,8 @@ class Decl_fun {
 		this.fun_body = fun_body;
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
+	RTLfun accept(Visitor v) {
+		return v.visit(this);
 	}
 }
 
@@ -409,151 +397,44 @@ class File {
 		this.funs = funs;
 	}
 
-	void accept(Visitor v) {
-		v.visit(this);
-	}
+	RTLfile accept(Visitor v) {
+		return v.visit(this);
+    }
 }
 
 interface Visitor {
-	public void visit(Unop n);
 
-	public void visit(Binop n);
+	Label visit(Econst n, Label nextLabel, Register register);
 
-	public void visit(String n);
+	Label visit(Eaccess_local n, Label nextLabel, Register register);
 
-	public void visit(Tint n);
+	Label visit(Eaccess_field n, Label nextLabel, Register register);
 
-	public void visit(Tstructp n);
+	Label visit(Eassign_local n, Label nextLabel, Register register);
 
-	public void visit(Tvoidstar n);
+	Label visit(Eassign_field n, Label nextLabel, Register register);
 
-	public void visit(Ttypenull n);
+	Label visit(Eunop n, Label nextLabel, Register register);
 
-	public void visit(Structure n);
+	Label visit(Ebinop n, Label nextLabel, Register register);
 
-	public void visit(Field n);
+	Label visit(Ecall n, Label nextLabel, Register register);
 
-	public void visit(Decl_var n);
+	Label visit(Esizeof n, Label nextLabel, Register register);
 
-	public void visit(Expr n);
+	Label visit(Sskip n, Label nextLabel);
 
-	public void visit(Econst n);
+	Label visit(Sexpr n, Label nextLabel);
 
-	public void visit(Eaccess_local n);
+	Label visit(Sif n, Label nextLabel);
 
-	public void visit(Eaccess_field n);
+	Label visit(Swhile n, Label nextLabel);
 
-	public void visit(Eassign_local n);
+	Label visit(Sblock n, Label nextLabel);
 
-	public void visit(Eassign_field n);
+	Label visit(Sreturn n, Label nextLabel);
 
-	public void visit(Eunop n);
+	RTLfun visit(Decl_fun n);
 
-	public void visit(Ebinop n);
-
-	public void visit(Ecall n);
-
-	public void visit(Esizeof n);
-
-	public void visit(Sskip n);
-
-	public void visit(Sexpr n);
-
-	public void visit(Sif n);
-
-	public void visit(Swhile n);
-
-	public void visit(Sblock n);
-
-	public void visit(Sreturn n);
-
-	public void visit(Decl_fun n);
-
-	public void visit(File n);
-}
-
-class EmptyVisitor implements Visitor {
-	public void visit(Unop n) {
-	}
-
-	public void visit(Binop n) {
-	}
-
-	public void visit(String n) {
-	}
-
-	public void visit(Tint n) {
-	}
-
-	public void visit(Tstructp n) {
-	}
-
-	public void visit(Tvoidstar n) {
-	}
-
-	public void visit(Ttypenull n) {
-	}
-
-	public void visit(Structure n) {
-	}
-
-	public void visit(Field n) {
-	}
-
-	public void visit(Decl_var n) {
-	}
-
-	public void visit(Expr n) {
-	}
-
-	public void visit(Econst n) {
-	}
-
-	public void visit(Eaccess_local n) {
-	}
-
-	public void visit(Eaccess_field n) {
-	}
-
-	public void visit(Eassign_local n) {
-	}
-
-	public void visit(Eassign_field n) {
-	}
-
-	public void visit(Eunop n) {
-	}
-
-	public void visit(Ebinop n) {
-	}
-
-	public void visit(Ecall n) {
-	}
-
-	public void visit(Esizeof n) {
-	}
-
-	public void visit(Sskip n) {
-	}
-
-	public void visit(Sexpr n) {
-	}
-
-	public void visit(Sif n) {
-	}
-
-	public void visit(Swhile n) {
-	}
-
-	public void visit(Sblock n) {
-	}
-
-	public void visit(Sreturn n) {
-	}
-
-	public void visit(Decl_fun n) {
-	}
-
-	public void visit(File n) {
-	}
+	RTLfile visit(File n);
 }

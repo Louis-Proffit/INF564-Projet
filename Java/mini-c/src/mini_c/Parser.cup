@@ -1,15 +1,19 @@
+package mini_c;
+
 import java_cup.runtime.*;
 import java.util.*;
 
 terminal String IDENT;
 terminal Integer INTEGER;
 terminal Binop CMP;
-terminal  INT, STRUCT, IF, ELSE, WHILE, RETURN, SIZEOF,
-	     LP, RP, LBRA,RBRA, COMMA, EQUAL, BARBAR, AMPAMP, EQ, NEQ,
+terminal INT, STRUCT, IF, ELSE, WHILE, RETURN, SIZEOF,
+	     LP, RP, LBRA,RBRA, COMMA, EQUAL, BARBAR, AMPAMP, AMP, EQ, NEQ,
 		  PLUS, MINUS, TIMES, DIV, ARROW, NOT, SEMICOLON;
 terminal UMINUS;
 
 non terminal Pfile file;
+non terminal Ptype type;
+non terminal PTypeStruct type_struct;
 non terminal Pdecl decl, decl_fun;
 non terminal LinkedList<Pdecl> list_decl;
 non terminal LinkedList<Pdeclvar> decl_var, list_decl_var, list_comma_formal;
@@ -44,6 +48,21 @@ file ::=
     {: RESULT = new Pfile(l); :}
 ;
 
+type ::=
+    INT
+    {: RESULT = Ptype.ptint; :}
+    | type_struct:i
+    {: RESULT = i; :}
+    | type:t TIMES
+    {: RESULT = new Ppointer(t); :}
+    ;
+
+type_struct ::=
+    STRUCT ident:i
+    {: RESULT = new PTypeStruct(i); :}
+    ;
+
+
 decl ::=
   STRUCT IDENT:s LBRA list_decl_var:fl RBRA SEMICOLON
     {: RESULT = new Pstruct(s, fl); :}
@@ -52,14 +71,9 @@ decl ::=
 ;
 
 decl_var ::=
-  INT nonempty_list_comma_ident:xl SEMICOLON
+    type:t nonempty_list_comma_ident:xl SEMICOLON
     {: LinkedList<Pdeclvar> l = new LinkedList<Pdeclvar>();
-       for (Pstring x: xl) l.add(new Pdeclvar(Ptype.ptint, x));
-       RESULT = l; :}
-| STRUCT ident:s nonempty_list_comma_star_ident:xl SEMICOLON
-    {: LinkedList<Pdeclvar> l = new LinkedList<Pdeclvar>();
-       Ptype ty = new PTstruct(s);
-       for (Pstring x: xl) l.add(new Pdeclvar(ty, x));
+       for (Pstring x: xl) l.add(new Pdeclvar(t, x));
        RESULT = l; :}
 ;
 
@@ -69,18 +83,14 @@ star_ident ::=
 ;
 
 decl_fun ::=
-  INT ident:f LP list_comma_formal:pl RP bloc:b
-    {: RESULT = new Pfun(Ptype.ptint, f, pl, b); :}
-| STRUCT ident:s TIMES ident:f LP list_comma_formal:pl RP bloc:b
-    {: RESULT = new Pfun(new PTstruct(s), f, pl, b); :}
+  type:t ident:f LP list_comma_formal:pl RP bloc:b
+    {: RESULT = new Pfun(t, f, pl, b); :}
 ;
 
 formal ::=
-  INT ident:x
-    {: RESULT = new Pdeclvar(Ptype.ptint, x); :}
-| STRUCT ident:s TIMES ident:x
-    {: RESULT = new Pdeclvar(new PTstruct(s), x); :}
-;
+    type:t ident:x
+    {: RESULT = new Pdeclvar(t, x); :}
+    ;
 
 bloc ::=
   LBRA:loc list_decl_var:vl list_stmt:sl RBRA
@@ -122,6 +132,10 @@ expr ::=
   %prec UMINUS
 | NOT:op expr:e1
     {: RESULT = new Punop(Unop.Unot, e1, new Loc(opleft, opright)); :}
+| AMP:op expr:e1
+    {: RESULT = new Punop(Unop.Uref, e1, new Loc(opleft, opright)); :}
+| TIMES:op expr:e1
+    {: RESULT = new Punop(Unop.Uderef, e1, new Loc(opleft, opright)); :}
 | lvalue:e1 EQUAL expr:e2
     {: RESULT = new Passign(e1, e2); :}
 | expr:e1 EQ expr:e2
@@ -151,10 +165,9 @@ expr ::=
 ;
 
 list_comma_expr ::=
-  nonempty_list_comma_expr:l
-   {: RESULT = l; :}
-|
    {: RESULT = new LinkedList<Pexpr>(); :}
+   | nonempty_list_comma_expr:l
+   {: RESULT = l; :}
 ;
 
 nonempty_list_comma_expr ::=
