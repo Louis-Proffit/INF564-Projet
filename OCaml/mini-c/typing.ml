@@ -74,6 +74,46 @@ let rec type_expr env = function
         with Not_found -> raise (Error "you are trying to assign a field of a structure that is not defined"))
       | _            -> raise (Error "you are trying to assign a field of something that is not a structure")
 )
+  | Ptree.Eunop (Unot,e) -> let expr = type_expr env e.expr_node in {expr_node=Eunop(Unot, expr);expr_typ=Tint}
+  | Ptree.Eunop (Uminus,e) -> let expr = type_expr env e.expr_node in
+    if (type_equiv expr.expr_typ Tint)
+    then {expr_node=Eunop(Uminus, expr);expr_typ=Tint}
+    else raise (Error "Negation of a non integer variable not defined")
+    | Ptree.Ebinop (b,e1,e2) ->
+    let ne1 = type_expr env e1.expr_node in
+    let ne2 = type_expr env e2.expr_node in
+    begin match b with
+    | Beq
+    | Bneq
+    | Blt
+    | Ble
+    | Bgt
+    | Bge->
+      if (type_equiv ne1.expr_typ ne2.expr_typ)
+      then {expr_node=Ebinop(b, ne1, ne2);expr_typ=Tint}
+      else raise (Error "Incompatible types for binop")
+     | Badd
+     | Bsub
+     | Bmul
+     | Bdiv ->
+      if ((type_equiv ne1.expr_typ Tint) && (type_equiv ne2.expr_typ Tint))
+      then {expr_node=Ebinop(b, ne1, ne2);expr_typ=Tint}
+      else raise (Error "Incompatible types for binop")
+     | Band
+     | Bor ->
+     {expr_node=Ebinop(b, ne1, ne2);expr_typ=Tint}
+    end
+  | Ptree.Ecall (i,el) ->
+  let mfun = Hashtbl.find env.funs i.id in
+    let expr_list = List.map2 (
+        fun (expr:Ptree.expr) (t,i) -> let mexpr = type_expr env expr.expr_node in
+        if (type_equiv mexpr.expr_typ t)
+        then mexpr else raise (Error "non matching types")
+       ) el mfun.fun_formals in
+    {expr_node=Ecall(i.id, expr_list);expr_typ=mfun.fun_typ}
+  | Ptree.Esizeof i ->
+  try let structure = Hashtbl.find env.structs i.id in {expr_node=Esizeof(structure); expr_typ=Tint}
+  with Not_found -> raise (Error ("structure " ^ i.id ^ " not defined"))
   | _         -> assert false
 
 let type_type env = function
