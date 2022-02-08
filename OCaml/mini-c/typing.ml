@@ -60,7 +60,8 @@ let rec type_expr env = function
        if type_equiv ty_left texpr.expr_typ
        then {expr_node = Eassign_local (x.id, texpr); expr_typ = texpr.expr_typ}
        else raise (Error ("you are trying to assign " ^ x.id ^ " with the wrong type"))
-     with Not_found -> raise (Error ("the variable " ^ x.id ^ " is not declared")))
+     with Not_found -> raise (Error ("the variable " ^ x.id ^ " is not declared (assignement)"))
+     )
   | Ptree.Eassign (Ptree.Larrow (e1, x), e2) ->
     let texpr1 = type_expr env e1.expr_node and texpr2 = type_expr env e2.expr_node in
     (match texpr1.expr_typ with
@@ -75,13 +76,9 @@ let rec type_expr env = function
 )
   | _         -> assert false
 
-
-
 let type_type env = function
   | Ptree.Tint -> Tint
   | Ptree.Tstructp ident -> try Tstructp (Hashtbl.find env.structs ident.id) with Not_found -> raise (Error ("type_type failed with " ^ ident.id))
-
-
 
 
 let rec type_stmt env (s: Ptree.stmt) =
@@ -103,17 +100,19 @@ let rec type_stmt env (s: Ptree.stmt) =
     if (type_equiv (expr.expr_typ) (env.returnType)) then Sreturn(expr) else raise (Error("Wrong return type"))
   | _         -> assert false
 
+let type_decl_var env ((t, i):(Ptree.typ * Ptree.ident)) =
+    let new_t = type_type env t in
+    Hashtbl.add env.vars i.id new_t;
+    (new_t, i.id)
 
+let type_stmt_list env sl = List.map (type_stmt env) sl
 
+let type_decl_var_list env dl =
+    List.map (type_decl_var env) dl
 
-let rec type_decl_var_list env (pdv: Ptree.decl_var list) =
-  match pdv with
-    | []      -> []
-    | (t, i) :: q -> (type_type env t, i.id) :: (type_decl_var_list env q)
-
-let type_block env (d, s) =
-  (type_decl_var_list env d, List.map (type_stmt env) s)
-
+let type_block env ((dl, sl):(Ptree.decl_var list * Ptree.stmt list)) =
+    let vars = type_decl_var_list env dl in
+    (vars, type_stmt_list env sl)
 
 let program (p: Ptree.file) =
   let rec aux env = function
