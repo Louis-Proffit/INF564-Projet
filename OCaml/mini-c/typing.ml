@@ -105,12 +105,13 @@ let rec type_expr env = function
     end
   | Ptree.Ecall (i,el) ->
   let mfun = Hashtbl.find env.funs i.id in
-    let expr_list = List.map2 (
+    (try let expr_list = List.map2 (
         fun (expr:Ptree.expr) (t,i) -> let mexpr = type_expr env expr.expr_node in
         if (type_equiv mexpr.expr_typ t)
         then mexpr else raise (Error "non matching types")
        ) el mfun.fun_formals in
     {expr_node=Ecall(i.id, expr_list);expr_typ=mfun.fun_typ}
+   with Invalid_argument e -> raise (Error "wrong number of arguments"))
   | Ptree.Esizeof i ->
   try let structure = Hashtbl.find env.structs i.id in {expr_node=Esizeof(structure); expr_typ=Tint}
   with Not_found -> raise (Error ("structure " ^ i.id ^ " not defined"))
@@ -138,7 +139,8 @@ let rec type_stmt env (s: Ptree.stmt) =
   | Ptree.Sreturn e       ->
     let expr = type_expr env e.expr_node in
     if (type_equiv (expr.expr_typ) (env.returnType)) then Sreturn(expr) else raise (Error("Wrong return type"))
-  | _         -> assert false
+  | Ptree.Sif (e,s1,s2) -> Sif(type_expr env e.expr_node, type_stmt env s1, type_stmt env s2)
+  | Ptree.Swhile (e,s) -> Swhile(type_expr env e.expr_node, type_stmt env s)
 
 let type_decl_var env ((t, i):(Ptree.typ * Ptree.ident)) =
     let new_t = type_type env t in
@@ -200,8 +202,26 @@ let program (p: Ptree.file) =
      funs = Hashtbl.create 10;
      returnType = Ttypenull
    } in
+   Hashtbl.add env.funs "putchar"
    {
-     funs = aux env p
+    fun_typ = Tint;
+    fun_name = "putchar";
+    fun_formals = [(Tint, "c")];
+    fun_body = ([],[Sskip]);
+   };
+   Hashtbl.add env.funs "sbrk"
+      {
+       fun_typ = Tvoidstar;
+       fun_name = "sbrk";
+       fun_formals = [(Tint, "n")];
+       fun_body = ([],[Sskip]);
+      };
+   let funs = aux env p in
+   (try let main_fun = Hashtbl.find env.funs "main" in
+   if ((List.length main_fun.fun_formals != 0) || not(type_equiv main_fun.fun_typ Tint)) then raise (Error "incorrect main function")
+   with Not_found -> raise (Error "main function missing"));
+   {
+     funs = funs;
    }
 
 
