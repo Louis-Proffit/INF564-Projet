@@ -18,7 +18,6 @@ and expr =
 
 (** Instruction *)
 type stmt =
-  | Sskip (* remove *)
   | Sexpr of expr
   | Sif of expr * stmt * stmt
   | Swhile of expr * stmt

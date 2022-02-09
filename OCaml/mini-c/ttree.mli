@@ -1,6 +1,10 @@
 
 (** Arbres issus du typage *)
 
+type var_typ =
+    | Iarg
+    | Ilocal of int (* Local is the level of the block it is defined in, unique for a function scope*)
+
 type ident = string
 
 type typ =
@@ -18,6 +22,7 @@ and structure = {
 and field = {
   field_name: string;
   field_typ : typ;
+  shift     : int;
   (* on pourra ajouter plus tard ici la position du champ dans la structure *)
 }
 
@@ -25,19 +30,19 @@ type unop = Ptree.unop
 
 type binop = Ptree.binop
 
-type decl_var = typ * ident
+type decl_var = typ * ident * var_typ
 
 (** Expression *)
 type expr = {
   expr_node: expr_node;
-  expr_typ : typ        (* <- chaque expression est décorée par son type *)
+  expr_typ : typ;        (* <- chaque expression est décorée par son type *)
 }
 
 and expr_node =
   | Econst of int32
-  | Eaccess_local of ident
+  | Eaccess_local of ident * var_typ
   | Eaccess_field of expr * field
-  | Eassign_local of ident * expr
+  | Eassign_local of ident * expr * var_typ
   | Eassign_field of expr * field * expr
   | Eunop of unop * expr
   | Ebinop of binop * expr * expr

@@ -47,7 +47,7 @@ let () =
     if !parse_only then exit 0;
     let p = Typing.program p in
     if !type_only then exit 0;
-    let p = Optimizing.program p in
+    Optimizing.program p;
     if !optimize_only then exit 0;
   with
     | Lexer.Lexical_error c ->

@@ -5,10 +5,12 @@ open Ttree
 exception Error of string
 
 type environment = {
-  vars: (string, typ) Hashtbl.t;
-  structs: (string, structure) Hashtbl.t;
-  funs: (string, decl_fun) Hashtbl.t;
-  returnType: typ
+  vars                      : (string, typ * var_typ) Hashtbl.t;
+  structs                   : (string, structure) Hashtbl.t;
+  funs                      : (string, decl_fun) Hashtbl.t;
+  returnType                : typ;
+  block_index               : int ref; (* this integer helps remembering th index of the block to append it to every variable declaration name *)
+  block_new_index           : int ref;
 }
 
 let string_of_type = function
@@ -16,7 +18,6 @@ let string_of_type = function
   | Tstructp x -> "struct " ^ x.str_name ^ "*"
   | Tvoidstar  -> "void*"
   | Ttypenull  -> "typenull"
-
 
 let type_equiv t s =
   match (t, s) with
@@ -42,8 +43,14 @@ let rec type_expr env = function
     expr_typ = Ttypenull;
    }
   | Ptree.Eright (Ptree.Lident x) ->
-    (try {expr_node = Eaccess_local x.id; expr_typ = Hashtbl.find env.vars x.id}
-     with Not_found -> raise (Error ("the variable " ^ x.id ^ " is not assigned")))
+  begin
+      try let (typ, var_typ) = Hashtbl.find env.vars x.id in
+      {
+          expr_node = Eaccess_local(x.id,var_typ);
+          expr_typ = typ;
+      }
+      with Not_found -> raise (Error ("the variable " ^ x.id ^ " is not assigned"))
+  end
   | Ptree.Eright (Ptree.Larrow (e, x)) ->
     let texpr = type_expr env e.expr_node in
     (match texpr.expr_typ with
@@ -57,10 +64,10 @@ let rec type_expr env = function
 )
   | Ptree.Eassign (Ptree.Lident x, e) ->
     let texpr = type_expr env e.expr_node in
-    (try let ty_left = Hashtbl.find env.vars x.id in
-       if type_equiv ty_left texpr.expr_typ
-       then {expr_node = Eassign_local (x.id, texpr); expr_typ = texpr.expr_typ}
-       else raise (Error ("Assigning " ^ x.id ^ " of type "^(string_of_type ty_left)^" with type "^(string_of_type texpr.expr_typ)))
+    (try let (left_typ, arg_typ) = Hashtbl.find env.vars x.id in
+       if type_equiv left_typ texpr.expr_typ
+       then {expr_node = Eassign_local (x.id, texpr, arg_typ); expr_typ = left_typ}
+       else raise (Error ("Assigning " ^ x.id ^ " of type "^(string_of_type left_typ)^" with type "^(string_of_type texpr.expr_typ)))
      with Not_found -> raise (Error ("the variable " ^ x.id ^ " is not declared (assignement)"))
      )
   | Ptree.Eassign (Ptree.Larrow (e1, x), e2) ->
@@ -107,7 +114,7 @@ let rec type_expr env = function
   | Ptree.Ecall (i,el) ->
   (try (let mfun = Hashtbl.find env.funs i.id in
     (try let expr_list = List.map2 (
-        fun (expr:Ptree.expr) (t,i) -> let mexpr = type_expr env expr.expr_node in
+        fun (expr:Ptree.expr) (t,i,vt) -> let mexpr = type_expr env expr.expr_node in
         if (type_equiv mexpr.expr_typ t)
         then mexpr else raise (Error "non matching types")
        ) el mfun.fun_formals in
@@ -128,7 +135,11 @@ and type_stmt env (s: Ptree.stmt) =
   match s.stmt_node with
   | Ptree.Sskip           -> Sskip
   | Ptree.Sexpr e         -> Sexpr (type_expr env e.expr_node)
-  | Ptree.Sblock (dl, sl) -> Sblock(type_block env (dl,sl))
+  | Ptree.Sblock (dl, sl) ->
+    let block_index = !(env.block_index) in
+    let result = Sblock(type_block env (dl,sl)) in
+    env.block_index := block_index;
+    result
   | Ptree.Sreturn e       ->
     let expr = type_expr env e.expr_node in
     if (type_equiv (expr.expr_typ) (env.returnType)) then Sreturn(expr) else raise (Error("Wrong return type"))
@@ -137,20 +148,28 @@ and type_stmt env (s: Ptree.stmt) =
 
 
 and type_block env ((dl, sl):(Ptree.decl_var list * Ptree.stmt list)) =
+    let block_index = !(env.block_new_index) in
+    env.block_index := block_index;
+    env.block_new_index := block_index + 1;
     let new_vars = Hashtbl.create 15 in
-    List.iter (fun ((tt,i):(Ptree.typ*Ptree.ident)) ->
-    if (Hashtbl.mem new_vars i.id) then raise (Error ("variable "^i.id^" defined twice in the block")) else Hashtbl.add new_vars i.id (type_type env tt)
-    ) dl;
+    List.iter
+        (fun ((tt,i):(Ptree.typ*Ptree.ident)) ->
+            if (Hashtbl.mem new_vars i.id)
+            then raise (Error ("variable "^i.id^" defined twice in the block"))
+            else Hashtbl.add new_vars i.id (type_type env tt, Ilocal block_index)
+        )
+    dl;
     Hashtbl.iter (Hashtbl.add env.vars) new_vars;
     let stmts = List.map (type_stmt env) sl in
     Hashtbl.iter (fun i t -> Hashtbl.remove env.vars i) new_vars;
-    let decls = List.map (fun ((t,i):(Ptree.typ*Ptree.ident)) -> (Hashtbl.find new_vars i.id,i.id)) dl in
+    let decls = List.map (fun ((t,i):(Ptree.typ*Ptree.ident)) -> let (mt, mvt) = Hashtbl.find new_vars i.id in (mt, i.id,Ilocal block_index)) dl in
     (decls, stmts)
 
 let program (p: Ptree.file) =
   let rec aux env = function
     | [] -> []
     | (Ptree.Dstruct (id, l)) :: q ->
+        let i = ref 0 in
         if (Hashtbl.mem env.structs id.id) then raise (Error ("struct " ^ id.id ^ " was already declared"));
         Hashtbl.add env.structs id.id {str_name = id.id; str_fields = Hashtbl.create 1};
         (let new_fields = Hashtbl.create 15 in
@@ -162,8 +181,10 @@ let program (p: Ptree.file) =
             else (Hashtbl.add h id_var.id)
             {
                 field_name = id_var.id;
-                field_typ = type_type env ty
+                field_typ = type_type env ty;
+                shift = !i;
             };
+            i := !i + 1;
             fill_struct h q
          in
          fill_struct new_fields l;
@@ -182,10 +203,11 @@ let program (p: Ptree.file) =
         (
             fun ((pt,i):(Ptree.typ*Ptree.ident)) -> let tt = type_type env pt in
             (if (Hashtbl.mem env.vars i.id) then raise (Error ("function "^fun_name^" has two arguments named "^i.id^""))
-            else Hashtbl.add env.vars i.id tt);
-            (tt,i.id)
+            else Hashtbl.add env.vars i.id (tt, Iarg));
+            (tt,i.id, Iarg)
         ) d.fun_formals in
         Hashtbl.add env.funs fun_name {fun_typ=fun_typ;fun_name=fun_name;fun_formals=fun_formals;fun_body=([],[])};
+        env.block_new_index := 0;
         let fun_body = type_block env d.fun_body in
         let ttree_dfun = {
           fun_typ = fun_typ;
@@ -194,7 +216,7 @@ let program (p: Ptree.file) =
           fun_body = fun_body;
         } in
         Hashtbl.replace env.funs fun_name ttree_dfun;
-        (List.iter (fun (t,i) -> Hashtbl.remove env.vars i) fun_formals);
+        (List.iter (fun (t,i,vt) -> Hashtbl.remove env.vars i) fun_formals);
         ttree_dfun :: (aux env q)
       )
    in
@@ -202,20 +224,22 @@ let program (p: Ptree.file) =
      vars = Hashtbl.create 15;
      structs = Hashtbl.create 10;
      funs = Hashtbl.create 10;
-     returnType = Ttypenull
+     returnType = Ttypenull;
+     block_index = ref 0;
+     block_new_index = ref 0;
    } in
    Hashtbl.add env.funs "putchar"
    {
     fun_typ = Tint;
     fun_name = "putchar";
-    fun_formals = [(Tint, "c")];
+    fun_formals = [(Tint, "c",Iarg)];
     fun_body = ([],[Sskip]);
    };
    Hashtbl.add env.funs "sbrk"
       {
        fun_typ = Tvoidstar;
        fun_name = "sbrk";
-       fun_formals = [(Tint, "n")];
+       fun_formals = [(Tint, "n",Iarg)];
        fun_body = ([],[Sskip]);
       };
    let funs = aux env p in
