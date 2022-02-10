@@ -9,7 +9,6 @@ type environment = {
   structs                   : (string, structure) Hashtbl.t;
   funs                      : (string, decl_fun) Hashtbl.t;
   returnType                : typ;
-  block_index               : int ref; (* this integer helps remembering th index of the block to append it to every variable declaration name *)
   block_new_index           : int ref;
 }
 
@@ -135,11 +134,7 @@ and type_stmt env (s: Ptree.stmt) =
   match s.stmt_node with
   | Ptree.Sskip           -> Sskip
   | Ptree.Sexpr e         -> Sexpr (type_expr env e.expr_node)
-  | Ptree.Sblock (dl, sl) ->
-    let block_index = !(env.block_index) in
-    let result = Sblock(type_block env (dl,sl)) in
-    env.block_index := block_index;
-    result
+  | Ptree.Sblock (dl, sl) -> Sblock(type_block env (dl,sl))
   | Ptree.Sreturn e       ->
     let expr = type_expr env e.expr_node in
     if (type_equiv (expr.expr_typ) (env.returnType)) then Sreturn(expr) else raise (Error("Wrong return type"))
@@ -149,7 +144,6 @@ and type_stmt env (s: Ptree.stmt) =
 
 and type_block env ((dl, sl):(Ptree.decl_var list * Ptree.stmt list)) =
     let block_index = !(env.block_new_index) in
-    env.block_index := block_index;
     env.block_new_index := block_index + 1;
     let new_vars = Hashtbl.create 15 in
     List.iter
@@ -225,7 +219,6 @@ let program (p: Ptree.file) =
      structs = Hashtbl.create 10;
      funs = Hashtbl.create 10;
      returnType = Ttypenull;
-     block_index = ref 0;
      block_new_index = ref 0;
    } in
    Hashtbl.add env.funs "putchar"

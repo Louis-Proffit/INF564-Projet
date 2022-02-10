@@ -1,4 +1,4 @@
-
+open Ptree
 (** Arbres issus du typage *)
 
 type var_typ =

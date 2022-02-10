@@ -3,13 +3,14 @@
 
 type ident = string
 
-type unop = | Unot
+type unop = Ptree.unop
 
 type binop = Ptree.binop
 
 and expr =
   | Econst of int32
-  | Evar of ident
+  | Eaccess_local of ident
+  | Eassign_local of ident * expr
   | Eaccess_shift of expr * int
   | Eassign_shift of expr * int * expr
   | Eunop of unop * expr
@@ -18,8 +19,10 @@ and expr =
 
 (** Instruction *)
 type stmt =
+  | Sskip
   | Sexpr of expr
-  | Sif of expr * stmt * stmt
+  | Sifelse of expr * stmt * stmt
+  | Sif of expr * stmt
   | Swhile of expr * stmt
   | Sblock of block
   | Sreturn of expr

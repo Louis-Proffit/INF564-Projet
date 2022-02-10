@@ -7,6 +7,7 @@ open Lexing
 let parse_only = ref false
 let type_only = ref false
 let optimize_only = ref false
+let interp_rtl = ref false
 let debug = ref false
 
 let ifile = ref ""
@@ -19,6 +20,8 @@ let options =
      "  stops after typing";
    "--optimize-only", Arg.Set optimize_only,
      "  stops after optimizing";
+   "--interp-rtl", Arg.Set interp_rtl,
+     "  interprets RTL (and does not compile)";
    "--debug", Arg.Set debug,
      "  debug mode";
    ]
@@ -47,8 +50,11 @@ let () =
     if !parse_only then exit 0;
     let p = Typing.program p in
     if !type_only then exit 0;
-    Optimizing.program p;
+    let p = Optimizing.program p in
     if !optimize_only then exit 0;
+    let p = Rtl.program p in
+    if debug then Rtltree.print_file std_formatter p;
+    if !interp_rtl then begin ignore (Rtlinterp.program p);exit 0 end;
   with
     | Lexer.Lexical_error c ->
 	localisation (Lexing.lexeme_start_p buf);
@@ -64,6 +70,8 @@ let () =
     | Optimizing.Error s->
 	eprintf "optimizing error: %s@." s;
 	exit 1
-    | e when not debug ->
-	eprintf "anomaly: %s\n@." (Printexc.to_string e);
-	exit 2
+    | e ->
+            let bt = Printexc.get_backtrace () in
+            eprintf "anomaly: %s\n@." (Printexc.to_string e);
+            eprintf "%s@." bt;
+    	exit 2
