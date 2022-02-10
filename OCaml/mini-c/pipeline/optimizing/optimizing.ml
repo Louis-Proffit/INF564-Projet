@@ -57,34 +57,61 @@ and map_expr (e:Ttree.expr) =
     end
 
 and opt_expr = function
-    | Econst n -> Econst n
-    | Eaccess_local i -> Eaccess_local i
-    | Eassign_local (i,e) -> Eassign_local (i,e)
     | Eaccess_shift (e,i) -> Eaccess_shift (opt_expr e,i)
     | Eassign_shift (e1,i,e2) -> Eassign_shift (opt_expr e1,i,opt_expr e2)
-    | Eunop (u,e) -> Eunop (u,opt_expr e)
-    | Ebinop (b, Econst n1, Econst n2) ->
-    begin match b with
-    | Badd -> Econst(Int32.add n1 n2)
-    | Bsub -> Econst(Int32.sub n1 n2)
-    | Bmul -> Econst(Int32.mul n1 n2)
-    | Bdiv -> Econst(Int32.div n1 n2)
-    | x -> Ebinop(b,Econst n1,Econst n2)
+    | Eunop (u,e) ->
+    begin match u with
+        | Uminus ->
+        begin match e with
+            | Econst n -> Econst (Int32.neg n)
+            | _ -> Ebinop(Bsub,Econst 0l,opt_expr e)
+        end
+        | Unot ->
+        begin match e with
+            | Econst 0l -> Econst 1l
+            | Econst x -> Econst 0l
+            | Ebinop (Blt, e1, e2) -> opt_expr (Ebinop(Bge, e1, e2))
+            | Ebinop (Ble, e1, e2) -> opt_expr (Ebinop(Bgt, e1, e2))
+            | Ebinop (Bgt, e1, e2) -> opt_expr (Ebinop(Ble, e1, e2))
+            | Ebinop (Bge, e1, e2) -> opt_expr (Ebinop(Blt, e1, e2))
+            | _ -> Eunop(u, opt_expr e)
+        end
     end
+    | Ebinop (b, Econst n1, Econst n2) ->
+        begin match b with
+        | Badd -> Econst(Int32.add n1 n2)
+        | Bsub -> Econst(Int32.sub n1 n2)
+        | Bmul -> Econst(Int32.mul n1 n2)
+        | Bdiv -> Econst(Int32.div n1 n2)
+        | Beq -> Econst(Int32.div n1 n2)
+        | Bneq -> Econst(Int32.div n1 n2)
+        | Blt -> if (n1 > n2) then Econst(0l) else Econst(1l)
+        | Bgt -> if (n1 < n2) then Econst(0l) else Econst(1l)
+        | Bge -> if (n1 <= n2) then Econst(0l) else Econst(1l)
+        | Bgt -> if (n1 >= n2) then Econst(0l) else Econst(1l)
+        | Band -> if (Int32.equal n1 0l) then Econst(0l) else (if (Int32.equal n2 0l) then Econst(0l) else Econst(1l))
+        | Bor -> if (Int32.equal n1 0l) then (if (Int32.equal n2 0l) then Econst(0l) else Econst(1l)) else Econst(1l)
+        end
     | Ebinop (b,e1,e2) -> Ebinop (b,opt_expr e1,opt_expr e2)
-    | Ecall (i,el) -> Ecall (i,el)
+    | x -> x
 
 and map_stmt (stmt:Ttree.stmt)=
-    begin match stmt with
+    opt_stmt begin match stmt with
         | Ttree.Sexpr e -> Sexpr(map_expr e)
+        | Ttree.Sif (e,s,Sblock (dl,[])) -> Sif (map_expr e,map_stmt s)
         | Ttree.Sif (e,s,Sskip) -> Sif (map_expr e,map_stmt s)
+        | Ttree.Sif (e,Sblock (dl,[]),s) -> Sif (Eunop(Unot, map_expr e),map_stmt s)
         | Ttree.Sif (e,Sskip,s) -> Sif (Eunop(Unot, map_expr e),map_stmt s)
         | Ttree.Sif (e,s1,s2) -> Sifelse (map_expr e,map_stmt s1,map_stmt s2)
         | Ttree.Swhile (e,s) -> Swhile (map_expr e,map_stmt s)
         | Ttree.Sreturn e -> Sreturn (map_expr e)
         | Ttree.Sblock (dl,sl) -> Sblock(map_stmt_list sl)
-
+        | Ttree.Sskip -> assert false
     end
+
+and opt_stmt = function
+    | Sifelse (Eunop (Unot, e),s1,s2) -> Sifelse(e,s2,s1)
+    | x -> x
 
 and map_stmt_list (stmts:Ttree.stmt list) =
     begin match stmts with

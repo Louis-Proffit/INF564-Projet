@@ -25,6 +25,14 @@ let rec expr e destr destl =
     let label1 = generate (Estore(destr,adress_reg,i,destl)) in
     let label2 = expr e1 adress_reg label1 in
     expr e2 destr label2
+    | IS.Ebinop(Band, e1, e2) ->
+    let label_expr_2 = expr e2 destr destl in
+    let label_test = generate (Emubranch(Mjz, destr, destl, label_expr_2)) in
+    expr e1 destr label_test
+    | IS.Ebinop(Bor, e1, e2) ->
+    let label_expr_2 = expr e2 destr destl in
+    let label_test = generate (Emubranch(Mjnz, destr, destl, label_expr_2)) in
+    expr e1 destr label_test
     | IS.Ebinop(b, e1, e2) ->
     let reg = Register.fresh () in
     let label_add = generate (
@@ -60,7 +68,6 @@ let rec expr e destr destl =
         let label1 = generate (Econst(0l,destr, label)) in
         expr e expr_reg label1
         end
-    | _ -> assert false
     end
 
 
