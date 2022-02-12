@@ -6,14 +6,14 @@
   open Parsing
   open Ptree
 
-  (* Construction d'expressions et d'instructions localisées *)
+  (* Construction d'expressions et d'instructions localisï¿½es *)
 
 %}
 
 %token <string> IDENT
 %token <int32> INTEGER
 
-/* Mots clés */
+/* Mots clï¿½s */
 
 %token IF ELSE WHILE RETURN
 %token INT STRUCT SIZEOF
@@ -24,7 +24,7 @@
 %token SEMICOLON COMMA ARROW
 %token EOF
 
-/* Opérateurs */
+/* Opï¿½rateurs */
 
 %token EQ
 %token VERTICALBARVERTICALBAR
@@ -35,7 +35,7 @@
 %token STAR SLASH
 %token BANG
 
-/*s Précédences */
+/*s Prï¿½cï¿½dences */
 
 %nonassoc prec_then
 %nonassoc ELSE
@@ -50,10 +50,11 @@
 %right uminus BANG           /* - ! */
 %left ARROW
 
-/*s Point d'entrée */
+/*s Point d'entrï¿½e */
 
 %start file
 %type <Ptree.file> file
+%type <Ptree.decl_var> decl_var
 
 %%
 
@@ -61,40 +62,52 @@ file:
 | dl = list(decl) EOF  { dl }
 ;
 
+typ:
+| p = primitive_typ
+    { p }
+| t = primitive_typ STAR
+    { Tpointer t }
+;
+
+primitive_typ:
+| INT
+    { Tint }
+| STRUCT s = ident
+    { Tstruct s }
+;
+
+ident_star :
+| i = ident
+    { (i,0)}
+| STAR id = ident_star
+    { let i,n = id in (i, n + 1) }
+;
+
+decl_var :
+| t = typ i = ident
+    { (t,i) }
+;
+
 decl:
-| STRUCT s = ident LBRACE fl = list(decl_var) RBRACE SEMICOLON
+| STRUCT s = ident LBRACE fl = list(decl_var_local) RBRACE SEMICOLON
     { Dstruct (s, List.flatten fl) }
 | f = decl_fun
     { Dfun f }
 ;
 
-decl_var:
-| /*LONG*/ INT vl = separated_nonempty_list(COMMA, ident) SEMICOLON
-    { List.map (fun x -> (Tint, x)) vl }
-| STRUCT s = ident vl = separated_nonempty_list(COMMA, star_ident) SEMICOLON
-    { let ty = Tstructp s in List.map (fun x -> (ty, x)) vl }
-;
-
-star_ident:
-| STAR id = ident { id }
+decl_var_local:
+| t = primitive_typ vl = separated_nonempty_list(COMMA, ident_star) SEMICOLON
+    { List.map (fun x -> (t, x)) vl }
 ;
 
 decl_fun:
-| f = formal LPAR fl = formals RPAR body = block
-    { let ty, id = f in
-      { fun_typ = ty;
-	fun_name = id;
-	fun_formals = fl;
-	fun_body = body; } }
-;
-
-formals:
-| f = separated_list(COMMA, formal) { f }
-;
-
-formal:
-| /*LONG*/ INT          id = ident { Tint,       id }
-| STRUCT s = ident STAR id = ident { Tstructp s, id }
+| t = typ id = ident LPAR args = separated_list(COMMA, decl_var) RPAR body = block
+    { {
+        fun_typ = t;
+        fun_name = id;
+        fun_formals = args;
+        fun_body = body;
+    } }
 ;
 
 lvalue:
@@ -134,14 +147,16 @@ expr_node:
     { Eunop (Uminus, $2) }
 | BANG expr
     { Eunop (Unot, $2) }
+| STAR expr
+    { Eunop (Uderef, $2) }
 | INTEGER
     { Econst $1 }
 | id = ident LPAR el = separated_list(COMMA, expr) RPAR
     { Ecall (id, el) }
 | LPAR expr RPAR
     { $2.expr_node }
-| SIZEOF LPAR STRUCT id = ident RPAR
-    { Esizeof id }
+| SIZEOF LPAR t = typ RPAR
+    { Esizeof t }
 ;
 
 stmt:
@@ -167,7 +182,7 @@ stmt_node:
 ;
 
 block:
-| LBRACE vl = list(decl_var) sl = list(stmt) RBRACE { List.flatten vl, sl }
+| LBRACE vl = list(decl_var_local) sl = list(stmt) RBRACE { List.flatten vl, sl }
 ;
 
 ident:

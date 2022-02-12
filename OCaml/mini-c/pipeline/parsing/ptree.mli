@@ -7,10 +7,11 @@ type ident = { id: string; id_loc: loc }
 
 type typ =
   | Tint
-  | Tstructp of ident
+  | Tstruct of ident
+  | Tpointer of typ
 
 type unop =
-  | Unot | Uminus
+  | Unot | Uminus | Uderef
 
 type binop =
   | Beq | Bneq | Blt | Ble | Bgt | Bge | Badd | Bsub | Bmul | Bdiv
@@ -24,11 +25,12 @@ type expr =
 and expr_node =
   | Econst of int32
   | Eright of lvalue
+  | Ederef of expr
   | Eassign of lvalue * expr
   | Eunop of unop * expr
   | Ebinop of binop * expr * expr
   | Ecall of ident * expr list
-  | Esizeof of ident
+  | Esizeof of typ
 
 (** Une valeur gauche (en anglais, left value), c'est-à-dire une expression
     pouvant apparaître à gauche d'une affectation.
@@ -38,7 +40,11 @@ and lvalue =
   | Lident of ident
   | Larrow of expr * ident
 
+type ident_star = ident * int (* (int,3) stands for ***int *)
+
 type decl_var = typ * ident
+
+type decl_var_local = typ * ident_star
 
 (** Instruction C *)
 type stmt =
@@ -54,9 +60,9 @@ and stmt_node =
   | Sreturn of expr
 
 and block =
-  decl_var list * stmt list
+  decl_var_local list * stmt list
 
-type decl_struct = ident * decl_var list
+type decl_struct = ident * decl_var_local list
 
 type decl_fun = {
   fun_typ : typ;

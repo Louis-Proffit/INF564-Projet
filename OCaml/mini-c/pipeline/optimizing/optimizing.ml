@@ -4,6 +4,13 @@ open IS
 (* utiliser cette exception pour signaler une erreur de typage *)
 exception Error of string
 
+let typ_size = function
+    | Ttree.Tint
+    | Ttree.Ttypenull
+    | Ttree.Tvoidstar -> 64l
+    | Ttree.Tpointer t -> 64l
+    | Ttree.Tstruct  s -> Int32.mul 64l (Int32.of_int (Hashtbl.length s.str_fields))
+
 let rec check_return_stmt = function
       | Sskip -> false
       | Sexpr e -> false
@@ -43,17 +50,17 @@ let rec map_locals (b:Ttree.block) =
 
 (* Returns a the optimized expression *)
 and map_expr (e:Ttree.expr) =
-    begin match e.expr_node with
-      | Ttree.Econst n -> opt_expr (Econst n)
-      | Ttree.Eaccess_local (i,vt) -> opt_expr (Eaccess_local(full_ident i vt))
-      | Ttree.Eaccess_field (e,f) -> opt_expr (Eaccess_shift(map_expr e,f.shift))
-      | Ttree.Eassign_local (i,e,vt) -> opt_expr (Eassign_local(full_ident i vt, map_expr e))
-      | Ttree.Eassign_field (e1,f,e2) -> opt_expr (Eassign_shift(map_expr e1,f.shift, map_expr e2))
-      | Ttree.Eunop (u,e) -> opt_expr (Eunop(u, map_expr e))
-      | Ttree.Ebinop (Ptree.Badd,e1,e2) -> opt_expr (Ebinop(Ptree.Badd, map_expr e1, map_expr e2))
-      | Ttree.Ebinop (b,e1,e2) -> opt_expr (Ebinop(b, map_expr e1, map_expr e2))
-      | Ttree.Ecall (i,el) -> opt_expr (Ecall(i, List.map map_expr el))
-      | Ttree.Esizeof s -> opt_expr (Econst(Int32.mul(Int32.of_int (Hashtbl.length s.str_fields)) 64l))
+    opt_expr begin match e.expr_node with
+      | Ttree.Econst n -> Econst n
+      | Ttree.Eaccess_local (i,vt) -> Eaccess_local(full_ident i vt)
+      | Ttree.Eaccess_field (e,f) -> Eaccess_shift(map_expr e,f.shift)
+      | Ttree.Eassign_local (i,e,vt) -> Eassign_local(full_ident i vt, map_expr e)
+      | Ttree.Eassign_field (e1,f,e2) -> Eassign_shift(map_expr e1,f.shift, map_expr e2)
+      | Ttree.Eunop (u,e) -> Eunop(u, map_expr e)
+      | Ttree.Ebinop (Ptree.Badd,e1,e2) -> Ebinop(Ptree.Badd, map_expr e1, map_expr e2)
+      | Ttree.Ebinop (b,e1,e2) -> Ebinop(b, map_expr e1, map_expr e2)
+      | Ttree.Ecall (i,el) -> Ecall(i, List.map map_expr el)
+      | Ttree.Esizeof t -> Econst(typ_size t)
     end
 
 and opt_expr = function

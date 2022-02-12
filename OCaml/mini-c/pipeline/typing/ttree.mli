@@ -8,10 +8,11 @@ type var_typ =
 type ident = string
 
 type typ =
-  | Tint                  (** int *)
-  | Tstructp of structure (** struct S * *)
-  | Tvoidstar             (** void * *)
-  | Ttypenull             (** le type donné à la constante 0 *)
+  | Tint                        (** int *)
+  | Tstruct of structure    (** struct S * *)
+  | Tpointer of typ
+  | Tvoidstar                   (** void * *)
+  | Ttypenull                   (** le type donné à la constante 0 *)
 
 and structure = {
   str_name  : ident;
@@ -23,7 +24,6 @@ and field = {
   field_name: string;
   field_typ : typ;
   shift     : int;
-  (* on pourra ajouter plus tard ici la position du champ dans la structure *)
 }
 
 type unop = Ptree.unop
@@ -47,7 +47,7 @@ and expr_node =
   | Eunop of unop * expr
   | Ebinop of binop * expr * expr
   | Ecall of ident * expr list
-  | Esizeof of structure
+  | Esizeof of typ
 
 (** Instruction *)
 type stmt =

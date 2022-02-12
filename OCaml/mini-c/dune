@@ -1,7 +1,8 @@
 (include_subdirs unqualified)
+
 (executable
-     (name minic)
-     (promote (until-clean))
-     (flags ())
-     (modes byte exe)
-     (modules_without_implementation iS ptree ttree))
+ (name minic)
+ (promote (until-clean))
+ (flags ())
+ (modes byte exe)
+ (modules_without_implementation iS ptree ttree))
