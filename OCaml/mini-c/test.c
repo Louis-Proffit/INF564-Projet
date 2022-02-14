@@ -1,7 +1,17 @@
-int fact(int n) {
-  if (n <= 1) return 1;
-  return n * fact(n-1);
+
+int f(int x, int y) {
+  return x+y;
 }
+
 int main() {
-  return fact(5);
+  int c;
+  putchar(f('A', 0));
+  putchar(f('A', 1));
+  putchar(f('A', 2));
+  c = f('A', 3);
+  putchar(c);
+  c = c+1;
+  putchar(c);
+  putchar(10);
+  return 0;
 }

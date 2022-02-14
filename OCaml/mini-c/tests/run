@@ -19,7 +19,7 @@ echo
 test_gcc() {
 for f in syntax/bad/*.c; do
     if gcc -c $f > /dev/null 2>&1 ; then
-      echo "succï¿½s de gcc -c sur $f"; exit 1
+      echo "succès de gcc -c sur $f"; exit 1
     fi
 done
 
@@ -29,7 +29,7 @@ for f in typing/good/*.c exec/*.c exec-fail/*.c; do
 done
 for f in typing/bad/*.c; do
     if gcc -c $f > /dev/null 2>&1 ; then
-      echo "succï¿½s de gcc -c sur $f"; exit 1
+      echo "succès de gcc -c sur $f"; exit 1
     fi
 done
 for f in exec/*.c; do
@@ -43,7 +43,7 @@ for f in exec/*.c; do
           echo "mauvaise sortie de gcc sur $f"; exit 1
       fi
     else
-      echo "ï¿½chec de gcc -c sur $f"; exit 1
+      echo "échec de gcc -c sur $f"; exit 1
     fi
 done
 }
@@ -76,7 +76,7 @@ for f in syntax/bad/*.c; do
     case $? in
 	"0")
 	echo
-	echo "ECHEC sur "$f" (devrait ï¿½chouer)";;
+	echo "ECHEC sur "$f" (devrait échouer)";;
 	"1") score=`expr $score + 1`;;
 	*)
 	echo
@@ -107,7 +107,7 @@ percent=`expr 100 \* $score / $max`;
 
 echo -n "Syntaxe : $score/$max : $percent%"; }
 
-# partie 2 : tests d'analyse sï¿½mantique
+# partie 2 : tests d'analyse sémantique
 
 
 partie2 () {
@@ -126,7 +126,7 @@ for f in typing/bad/*.c; do
     case $? in
 	"0")
 	echo
-	echo "ECHEC sur "$f" (devrait ï¿½chouer)";;
+	echo "ECHEC sur "$f" (devrait échouer)";;
 	"1") score=`expr $score + 1`;;
 	*)
 	echo
@@ -159,7 +159,7 @@ echo    "Typage  : $score/$max : $percent%";
 }
 
 
-# partie 3 : tests d'interprï¿½tation
+# partie 3 : tests d'interprétation
 
 partie3i () {
 
@@ -168,7 +168,7 @@ score_test=0
 max=0
 
 echo
-echo "Interprï¿½tation"
+echo "Interprétation"
 echo "Execution normale"
 echo "-----------------"
 
@@ -189,12 +189,12 @@ for f in exec/*.c; do
 	fi
     else
 	echo
-	echo "ECHEC du compilateur sur $f (devrait rï¿½ussir)"
+	echo "ECHEC du compilateur sur $f (devrait réussir)"
     fi
 done
 echo
 
-echo "Execution conduisant ï¿½ un ï¿½chec"
+echo "Execution conduisant à un échec"
 echo "-------------------------------"
 
 for f in exec-fail/*.c; do
@@ -202,7 +202,7 @@ for f in exec-fail/*.c; do
     max=`expr $max + 1`;
     if $compilo $f > /dev/null 2>&1; then
         echo
-	echo "ECHEC : le code $f devrait ï¿½chouer"
+	echo "ECHEC : le code $f devrait échouer"
     else
 	score_test=`expr $score_test + 1`;
 	score_comp=`expr $score_comp + 1`;
@@ -241,7 +241,6 @@ for f in exec/*.c; do
     if compile $f; then
 	rm -f out
 	score_comp=`expr $score_comp + 1`;
-	echo gcc -no-pie $asm && ./a.out > out
 	if gcc -no-pie $asm && ./a.out > out; then
 	    score_out=`expr $score_out + 1`;
 	    if cmp --quiet out $expected; then
@@ -256,12 +255,12 @@ for f in exec/*.c; do
 	fi
     else
 	echo
-	echo "ECHEC de la compilation sur $f (devrait rï¿½ussir)"
+	echo "ECHEC de la compilation sur $f (devrait réussir)"
     fi
 done
 echo
 
-echo "Execution conduisant ï¿½ un ï¿½chec"
+echo "Execution conduisant à un échec"
 echo "-------------------------------"
 
 for f in exec-fail/*.c; do
@@ -273,14 +272,14 @@ for f in exec-fail/*.c; do
 	score_comp=`expr $score_comp + 1`;
 	if ./a.out > out; then
 	    echo
-	    echo "ECHEC : le code $f devrait ï¿½chouer"
+	    echo "ECHEC : le code $f devrait échouer"
 	else
 	    score_test=`expr $score_test + 1`;
 	    score_out=`expr $score_out + 1`;
 	fi
     else
 	echo
-	echo "ECHEC de la compilation sur $f (devrait rï¿½ussir)"
+	echo "ECHEC de la compilation sur $f (devrait réussir)"
     fi
 done
 
@@ -322,7 +321,7 @@ case $option in
         test_gcc;;
     * )
         echo "usage : $0 <option> <compilo>"
-        echo "spï¿½cifier une option parmi : "
+        echo "spécifier une option parmi : "
         echo "-1      : tester l'analyse syntaxique"
         echo "-2      : tester le typage"
         echo "-3      : tester la compilation"

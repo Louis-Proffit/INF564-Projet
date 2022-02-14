@@ -83,19 +83,20 @@ and opt_expr = function
             | Ebinop (Bge, e1, e2) -> opt_expr (Ebinop(Blt, e1, e2))
             | _ -> Eunop(u, opt_expr e)
         end
+        | Uderef -> assert false
     end
     | Ebinop (b, Econst n1, Econst n2) ->
         begin match b with
         | Badd -> Econst(Int32.add n1 n2)
         | Bsub -> Econst(Int32.sub n1 n2)
         | Bmul -> Econst(Int32.mul n1 n2)
-        | Bdiv -> Econst(Int32.div n1 n2)
+        | Bdiv -> (try Econst (Int32.div n1 n2) with Division_by_zero -> Ebinop (Bdiv, Econst n1, Econst n2))
         | Beq -> Econst(Int32.div n1 n2)
         | Bneq -> Econst(Int32.div n1 n2)
-        | Blt -> if (n1 > n2) then Econst(0l) else Econst(1l)
-        | Bgt -> if (n1 < n2) then Econst(0l) else Econst(1l)
-        | Bge -> if (n1 <= n2) then Econst(0l) else Econst(1l)
-        | Bgt -> if (n1 >= n2) then Econst(0l) else Econst(1l)
+        | Blt -> if (n1 < n2) then Econst(1l) else Econst(0l)
+        | Bgt -> if (n1 > n2) then Econst(1l) else Econst(0l)
+        | Bge -> if (n1 >= n2) then Econst(1l) else Econst(0l)
+        | Ble -> if (n1 <= n2) then Econst(1l) else Econst(0l)
         | Band -> if (Int32.equal n1 0l) then Econst(0l) else (if (Int32.equal n2 0l) then Econst(0l) else Econst(1l))
         | Bor -> if (Int32.equal n1 0l) then (if (Int32.equal n2 0l) then Econst(0l) else Econst(1l)) else Econst(1l)
         end

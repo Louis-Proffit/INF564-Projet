@@ -43,6 +43,7 @@ let map_instr il = function
     let rec mov_arg_stack regs label count =
         begin match (regs, count) with
         | (_,0) -> mov_arg_reg (List.rev regs) Register.parameters label
+        | ([], _) -> assert false
         | (r :: q, c) ->
             let push_label = Label.fresh () in
             add push_label (Epush_param (r, label));
@@ -54,13 +55,66 @@ let map_instr il = function
 
 let map_fun (f:Rtltree.deffun) =
     graph := Label.M.empty;
+
+    let entry_label = Label.fresh () in
+    let allocate_frame_label = Label.fresh() in
+
+    let arg_count = List.length f.fun_formals in
+    let args_on_stack = max (arg_count - 6) 0 in
+
+    let callee_saved_regs = List.map (fun x -> Register.fresh ()) Register.callee_saved in
+
+    let rec args_to_reg args regs label =
+        begin match (args, regs) with
+        | ([], _) -> label
+        | (_,[]) -> assert false
+        | (arg::q1, reg::q2) ->
+            let new_label = Label.fresh () in
+            add new_label (Embinop(Mmov, reg, arg, label));
+            args_to_reg q1 q2 new_label
+        end in
+
+    let rec args_to_stack args label count =
+        begin match (List.rev args, count) with
+        | (_,0) -> args_to_reg (List.rev args) Register.parameters label
+        | ([], _) -> assert false
+        | (arg::q, c) ->
+            let new_label = Label.fresh () in
+            add new_label (Eget_param (count, arg, label));
+            args_to_stack q new_label (c - 1)
+        end in
+
+    let get_args_label = args_to_stack f.fun_formals f.fun_entry args_on_stack in
+
+    let save_callee_saved_regs_label = List.fold_right2
+    (fun mreg reg label ->
+        let new_label = Label.fresh () in
+        add new_label (Embinop(Mmov, reg, mreg, label));
+        new_label)
+    callee_saved_regs Register.callee_saved get_args_label in
+
+    add allocate_frame_label (Ealloc_frame save_callee_saved_regs_label);
+    add entry_label (Egoto allocate_frame_label);
+
+    (* Work on the body of the function *)
     Label.M.iter map_instr f.fun_body;
-    add f.fun_exit Ereturn;
+
+    let return_label = Label.fresh () in
+    let delete_frame_label = Label.fresh () in
+    add return_label Ereturn;
+    add delete_frame_label (Edelete_frame return_label);
+    let restore_callee_regs_label = List.fold_right2
+    (fun mreg reg label ->
+        let new_label = Label.fresh () in
+        add new_label (Embinop(Mmov, mreg, reg, label));
+        new_label)
+    callee_saved_regs Register.callee_saved delete_frame_label in
+    add f.fun_exit (Embinop(Mmov, f.fun_result, Register.result, restore_callee_regs_label));
     {
         fun_name = f.fun_name;
         fun_formals = List.length f.fun_formals;
         fun_locals = f.fun_locals;
-        fun_entry = f.fun_entry;
+        fun_entry = entry_label;
         fun_body = !graph;
     }
 

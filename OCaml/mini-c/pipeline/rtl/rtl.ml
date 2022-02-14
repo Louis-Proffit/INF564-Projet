@@ -67,6 +67,7 @@ let rec expr e destr destl =
         let label = generate (Embinop(Msub, expr_reg, destr, destl)) in
         let label1 = generate (Econst(0l,destr, label)) in
         expr e expr_reg label1
+        | Uderef -> assert false
         end
     end
 
