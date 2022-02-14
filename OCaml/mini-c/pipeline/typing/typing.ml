@@ -6,7 +6,7 @@ exception Error of string
 
 type environment = {
   vars                      : (string, typ * var_typ) Hashtbl.t;
-  structs                   : (string, structure ref) Hashtbl.t;
+  structs                   : (string, structure) Hashtbl.t;
   funs                      : (string, decl_fun) Hashtbl.t;
   returnType                : typ;
   block_new_index           : int ref;
@@ -35,7 +35,7 @@ let rec type_equiv t s =
 let rec type_type env = function
     | Ptree.Tint -> Tint
     | Ptree.Tstruct i ->
-        begin try Tstruct !(Hashtbl.find env.structs i.id)
+        begin try Tstruct (Hashtbl.find env.structs i.id)
         with Not_found -> raise (Error ("Structure "^i.id^" not defined"))
         end
     | Ptree.Tpointer t -> Tpointer (type_type env t)
@@ -185,20 +185,21 @@ let program (p: Ptree.file) =
     | (Ptree.Dstruct (id, l)) :: q ->
         let i = ref 0 in
         if (Hashtbl.mem env.structs id.id) then raise (Error ("struct " ^ id.id ^ " was already declared"));
-        let str = ref {str_name = id.id; str_fields = Hashtbl.create 5} in
-        Hashtbl.add env.structs id.id str;
-        List.iter
-            begin fun ((t,(id,n)):(Ptree.typ* (Ptree.ident* int))) ->
-            if (Hashtbl.mem (!str).str_fields id.id) then raise (Error ("Struct "^id.id^" contains two fields named "^" id_var"))
-            else (Hashtbl.add (!str).str_fields id.id)
-            {
-                field_name = id.id;
-                field_typ = type_type env (type_ident_star t (id,n));
-                shift = !i;
-            };
-            i := !i + 1;
-            end
-        l;
+        Hashtbl.add env.structs id.id {str_name = id.id ; str_fields = Hashtbl.create 5};
+        let rec add_fields env = function
+            | [] -> ()
+            | ((t,(id,n)):(Ptree.typ * (Ptree.ident* int))) :: q ->
+                let str = try (Hashtbl.find env.structs id.id).str_fields with Not_found -> raise (Error "wtf") in
+                if (Hashtbl.mem str id.id) then raise (Error ("Struct "^id.id^" contains two fields named "^" id_var"))
+                else (Hashtbl.add str id.id)
+                {
+                    field_name = id.id;
+                    field_typ = type_type env (type_ident_star t (id,n));
+                    shift = !i;
+                };
+                i := !i + 1;
+                add_fields env q in
+        add_fields env l;
         aux env q
     | (Ptree.Dfun d) :: q -> (
         let fun_name = d.fun_name.id in
