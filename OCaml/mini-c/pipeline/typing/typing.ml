@@ -21,6 +21,8 @@ let rec string_of_type = function
 
 let rec type_equiv t s =
   match (t, s) with
+    | (Tstruct s1, Tstruct s2) -> String.equal s1.str_name s2.str_name
+    | (Tpointer t1, Tpointer t2) -> type_equiv t1 t2
     | (a, b) when b = a       -> true
     | (Ttypenull, Tint)       -> true
     | (Tint, Ttypenull)       -> true
@@ -28,8 +30,6 @@ let rec type_equiv t s =
     | (Tpointer _, Ttypenull) -> true
     | (Tvoidstar, Tpointer _) -> true
     | (Tpointer _, Tvoidstar) -> true
-    | (Tstruct s1, Tstruct s2) -> String.equal s1.str_name s2.str_name
-    | (Tpointer t1, Tpointer t2) -> type_equiv t1 t2
     | _                       -> false
 
 let rec type_type env = function
@@ -186,11 +186,11 @@ let program (p: Ptree.file) =
         let i = ref 0 in
         if (Hashtbl.mem env.structs id.id) then raise (Error ("struct " ^ id.id ^ " was already declared"));
         Hashtbl.add env.structs id.id {str_name = id.id ; str_fields = Hashtbl.create 5};
-        let rec add_fields env = function
+        let rec add_fields str_id env = function
             | [] -> ()
-            | ((t,(id,n)):(Ptree.typ * (Ptree.ident* int))) :: q ->
-                let str = try (Hashtbl.find env.structs id.id).str_fields with Not_found -> raise (Error "wtf") in
-                if (Hashtbl.mem str id.id) then raise (Error ("Struct "^id.id^" contains two fields named "^" id_var"))
+            | ((t,(id,n)):(Ptree.typ * (Ptree.ident * int))) :: q ->
+                let str = try (Hashtbl.find env.structs str_id).str_fields with Not_found -> raise (Error "wtf") in
+                if (Hashtbl.mem str id.id) then raise (Error ("Struct "^str_id^" contains two fields named "^id.id))
                 else (Hashtbl.add str id.id)
                 {
                     field_name = id.id;
@@ -198,8 +198,8 @@ let program (p: Ptree.file) =
                     shift = !i;
                 };
                 i := !i + 1;
-                add_fields env q in
-        add_fields env l;
+                add_fields str_id env q in
+        add_fields id.id env l;
         aux env q
     | (Ptree.Dfun d) :: q -> (
         let fun_name = d.fun_name.id in
