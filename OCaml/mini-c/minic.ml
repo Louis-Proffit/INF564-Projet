@@ -58,7 +58,8 @@ let () =
     if debug then Rtltree.print_file std_formatter p;
     if !interp_rtl then begin ignore (Rtlinterp.program p); exit 0 end;
     let p = Ertl.program p in
-    if debug then Ertltree.print_file std_formatter p;
+    let lg = Liveness.liveness p in
+    if debug then Ertltree.print_file std_formatter lg p;
     if !interp_ertl then begin ignore (Ertlinterp.program p); exit 0 end;
     (* ... *)
   with

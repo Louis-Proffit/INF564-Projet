@@ -30,9 +30,22 @@ type instr =
   | Epush_param of register * label
   | Ereturn
 
-type cfg = instr Label.map
   (** Un graphe de flot de contrôle est un dictionnaire associant à des
       étiquettes des instructions ERTL. *)
+
+type live_info = {
+         instr: instr;
+          succ: Label.t list;
+  mutable pred: Label.set;
+          defs: Register.set;
+          uses: Register.set;
+  mutable  ins: Register.set;
+  mutable outs: Register.set;
+}
+
+type lg = live_info Label.map
+
+type cfg = instr Label.map
 
 (** Une fonction ERTL. *)
 type deffun = {
@@ -89,6 +102,26 @@ let def_use = function
 open Format
 open Pp
 
+
+let succ = function
+  | Econst (_,_,l)
+  | Eload (_,_,_,l)
+  | Estore (_,_,_,l)
+  | Emunop (_,_,l)
+  | Embinop (_,_,_,l)
+  | Ecall (_,_,l)
+  | Egoto l
+  | Ealloc_frame l
+  | Edelete_frame l
+  | Eget_param (_,_,l)
+  | Epush_param (_,l) ->
+      [l]
+  | Emubranch (_,_,l1,l2)
+  | Embbranch (_,_,_,l1,l2) ->
+      [l1; l2]
+  | Ereturn ->
+      []
+
 let print_instr fmt = function
   | Econst (n, r, l) ->
       fprintf fmt "mov $%ld %a  --> %a" n Register.print r Label.print l
@@ -129,48 +162,35 @@ let print_instr fmt = function
   | Ereturn ->
       fprintf fmt "return"
 
-let succ = function
-  | Econst (_,_,l)
-  | Eload (_,_,_,l)
-  | Estore (_,_,_,l)
-  | Emunop (_,_,l)
-  | Embinop (_,_,_,l)
-  | Ecall (_,_,l)
-  | Egoto l
-  | Ealloc_frame l
-  | Edelete_frame l
-  | Eget_param (_,_,l)
-  | Epush_param (_,l) ->
-      [l]
-  | Emubranch (_,_,l1,l2)
-  | Embbranch (_,_,_,l1,l2) ->
-      [l1; l2]
-  | Ereturn ->
-      []
-
 let visit f g entry =
   let visited = Hashtbl.create 97 in
   let rec visit l =
     if not (Hashtbl.mem visited l) then begin
       Hashtbl.add visited l ();
-      let i = Label.M.find l g in
-      f l i;
-      List.iter visit (succ i)
+      let li = Label.M.find l g in
+      f l li.instr li;
+      List.iter visit (succ li.instr)
     end
   in
   visit entry
 
-let print_graph fmt =
-  visit (fun l i -> fprintf fmt "%a: %a@\n" Label.print l print_instr i)
+let print_set = Register.print_set
 
-let print_deffun fmt f =
+let print_live_info fmt li =
+    fprintf fmt "d={%a} u={%a} p={%a} i={%a} o={%a}"
+    print_set li.defs print_set li.uses Label.print_set li.pred print_set li.ins print_set li.outs
+
+let print_graph fmt =
+    visit (fun l i li -> fprintf fmt "  %a: %a %a\n" Label.print l print_instr i print_live_info li)
+
+let print_deffun fmt lg f =
   fprintf fmt "%s(%d)@\n" f.fun_name f.fun_formals;
   fprintf fmt "  @[";
   fprintf fmt "entry : %a@\n" Label.print f.fun_entry;
-  fprintf fmt "locals: @[%a@]@\n" Register.print_set f.fun_locals;
-  print_graph fmt f.fun_body f.fun_entry;
+  fprintf fmt "locals: %a \n" Register.print_set f.fun_locals;
+  print_graph fmt lg f.fun_entry;
   fprintf fmt "@]@."
 
-let print_file fmt p =
-  fprintf fmt "=== ERTL =================================================@\n";
-  List.iter (print_deffun fmt) p.funs
+let print_file fmt lg p =
+  fprintf fmt "=== ERTL ========================================================================\n";
+  List.iter (print_deffun fmt lg) p.funs

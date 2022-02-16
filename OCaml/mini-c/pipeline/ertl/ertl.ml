@@ -2,7 +2,6 @@ open Ertltree
 open Format
 
 let graph = ref Label.M.empty
-
 let add l i = graph := Label.M.add l i !graph
 
 let map_instr il = function
@@ -33,7 +32,8 @@ let map_instr il = function
     add call_label (Ecall(i, count_on_reg, move_result_label));
     let rec mov_arg_reg regs params label =
         begin match (regs, params) with
-        | (_,[]) -> assert false (* Params can't be empty while there are still arguments *)
+        | ([],[]) -> label (* Params can't be empty while there are still arguments *)
+        | (_,[]) -> assert false
         | ([], _) -> label
         | (reg :: q1, param :: q2) ->
             let mov_label = Label.fresh () in
@@ -117,6 +117,7 @@ let map_fun (f:Rtltree.deffun) =
         fun_entry = entry_label;
         fun_body = !graph;
     }
+
 
 let program (t:Rtltree.file) =
     {
