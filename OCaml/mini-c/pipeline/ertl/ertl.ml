@@ -76,7 +76,7 @@ let map_fun (f:Rtltree.deffun) =
 
     let rec args_to_stack args label count =
         begin match (List.rev args, count) with
-        | (_,0) -> args_to_reg (List.rev args) Register.parameters label
+        | (_,0) -> args_to_reg args Register.parameters label
         | ([], _) -> assert false
         | (arg::q, c) ->
             let new_label = Label.fresh () in
