@@ -7,9 +7,9 @@ exception Error of string
 let typ_size = function
     | Ttree.Tint
     | Ttree.Ttypenull
-    | Ttree.Tvoidstar -> 64l
-    | Ttree.Tpointer t -> 64l
-    | Ttree.Tstruct  s -> Int32.mul 64l (Int32.of_int (Hashtbl.length s.str_fields))
+    | Ttree.Tvoidstar -> 8l
+    | Ttree.Tpointer t -> 8l
+    | Ttree.Tstruct  s -> Int32.mul 8l (Int32.of_int (Hashtbl.length s.str_fields))
 
 let rec check_return_stmt = function
       | Sskip -> false

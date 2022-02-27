@@ -15,14 +15,14 @@ let rec expr e destr destl =
     | IS.Econst n -> generate (Econst (n, destr, destl))
     | IS.Eaccess_local i -> generate (Embinop (Mmov, Hashtbl.find var_reg_map i, destr, destl))
     | IS.Eaccess_shift (e,i) ->
-    let reg = Register.fresh () in let label = generate (Eload(reg,i * 8,destr,destl)) in expr e reg label
+    let reg = Register.fresh () in let label = generate (Eload(reg,i * 64,destr,destl)) in expr e reg label
     | IS.Eassign_local (i,e) ->
     let var_reg = (Hashtbl.find var_reg_map i) in
     let expr_label = generate (Embinop(Mmov, var_reg, destr, destl)) in
     expr e var_reg expr_label
     | IS.Eassign_shift (e1,i,e2) ->
     let adress_reg = Register.fresh () in
-    let label1 = generate (Estore(destr,adress_reg,i * 8,destl)) in
+    let label1 = generate (Estore(destr,adress_reg,i * 64,destl)) in
     let label2 = expr e1 adress_reg label1 in
     expr e2 destr label2
     | IS.Ebinop(Band, e1, e2) ->
