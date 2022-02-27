@@ -32,37 +32,47 @@ let map_instr il = function
     add call_label (Ecall(i, count_on_reg, move_result_label));
     let rec mov_arg_reg regs params label =
         begin match (regs, params) with
-        | ([],[]) -> label (* Params can't be empty while there are still arguments *)
-        | (_,[]) -> assert false
+        | (_,[]) -> label
         | ([], _) -> label
         | (reg :: q1, param :: q2) ->
             let mov_label = Label.fresh () in
             add mov_label (Embinop (Mmov, reg, param, label));
             mov_arg_reg q1 q2 mov_label
         end in
-    let rec mov_arg_stack regs label count =
-        begin match (regs, count) with
-        | (_,0) -> mov_arg_reg (List.rev regs) Register.parameters label
-        | ([], _) -> assert false
-        | (r :: q, c) ->
+
+    let rec truncate n l =
+      begin match (n, l) with
+        | (0, _) -> l
+        | (_, []) -> assert false
+        | (n, t :: q) -> truncate (n-1) q
+      end in
+
+    let rec mov_arg_stack regs label =
+        begin match regs with
+        | [] -> label
+        | r :: q ->
             let push_label = Label.fresh () in
             add push_label (Epush_param (r, label));
-            mov_arg_stack q push_label (c - 1)
+            mov_arg_stack q push_label
         end in
-    let mov_arg_label = mov_arg_stack (List.rev rl) call_label count_on_stack in
-    add il (Egoto mov_arg_label)
+
+    if count_on_stack > 0
+       then let mov_stack_label = mov_arg_stack (truncate 6 rl) call_label
+            in let mov_reg_label = mov_arg_reg rl Register.parameters mov_stack_label
+                in add il (Egoto mov_reg_label)
+       else let mov_reg_label = mov_arg_reg rl Register.parameters call_label
+                in add il (Egoto mov_reg_label)
     | Rtltree.Egoto l -> add il (Egoto l)
 
 let map_fun (f:Rtltree.deffun) =
     graph := Label.M.empty;
 
-    let entry_label = Label.fresh () in
     let allocate_frame_label = Label.fresh() in
 
     let arg_count = List.length f.fun_formals in
     let args_on_stack = max (arg_count - 6) 0 in
 
-    let callee_saved_regs = List.map (fun x -> Register.fresh ()) Register.callee_saved in
+    let callee_saved_regs = List.map (fun _ -> Register.fresh ()) Register.callee_saved in
 
     let rec args_to_reg args regs label =
         begin match (args, regs) with
@@ -74,17 +84,17 @@ let map_fun (f:Rtltree.deffun) =
             args_to_reg q1 q2 new_label
         end in
 
-    let rec args_to_stack args label count =
-        begin match (List.rev args, count) with
-        | (_,0) -> args_to_reg args Register.parameters label
+    let rec args_to_stack args label count = (* args is passed as a reverted list *)
+        begin match (args, count) with
+        | (_,0) -> args_to_reg (List.rev args) Register.parameters label
         | ([], _) -> assert false
         | (arg::q, c) ->
             let new_label = Label.fresh () in
-            add new_label (Eget_param (count, arg, label));
+            add new_label (Eget_param (c - 1, arg, label));
             args_to_stack q new_label (c - 1)
         end in
 
-    let get_args_label = args_to_stack f.fun_formals f.fun_entry args_on_stack in
+    let get_args_label = args_to_stack (List.rev f.fun_formals) f.fun_entry args_on_stack in
 
     let save_callee_saved_regs_label = List.fold_right2
     (fun mreg reg label ->
@@ -94,7 +104,6 @@ let map_fun (f:Rtltree.deffun) =
     callee_saved_regs Register.callee_saved get_args_label in
 
     add allocate_frame_label (Ealloc_frame save_callee_saved_regs_label);
-    add entry_label (Egoto allocate_frame_label);
 
     (* Work on the body of the function *)
     Label.M.iter map_instr f.fun_body;
@@ -114,7 +123,7 @@ let map_fun (f:Rtltree.deffun) =
         fun_name = f.fun_name;
         fun_formals = List.length f.fun_formals;
         fun_locals = f.fun_locals;
-        fun_entry = entry_label;
+        fun_entry = allocate_frame_label;
         fun_body = !graph;
     }
 
