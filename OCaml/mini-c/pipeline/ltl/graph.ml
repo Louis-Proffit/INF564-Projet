@@ -29,7 +29,7 @@ let add_intf r1 r2 =
     arc2.intfs<-Register.S.add r1 arc2.intfs
 
 (**
-Adds preferences edges for that instruction
+Adds preference edges for that instruction
 *)
 let label_preference (li:Ertltree.live_info) =
     begin match li.instr with
@@ -38,7 +38,7 @@ let label_preference (li:Ertltree.live_info) =
     end
 
 (**
-Adds interferecnce edges for that instruction
+Adds interference edges for that instruction
 *)
 let label_interference (li:Ertltree.live_info) =
     begin match li.instr with
@@ -113,12 +113,14 @@ let color ig =
         	    let r = Register.S.choose todo in
         	    color_rec (Register.M.add r (Spilled 0) coloring) colorability (Register.S.remove r todo)
         	else (* Register found *)
-        	    let color = Register.S.choose (Register.M.find s colorability) in (* Find an appropriate color *)
-        	    let colorability = Register.S.fold
-        	    begin fun r cs ->
-        	        Register.M.add r (Register.S.remove color (Register.M.find r cs)) cs
-        	    end (Register.M.find s ig).intfs colorability in (* Update colorability by removing color from all neighbours of s *)
-        	    color_rec (Register.M.add s (Reg color) coloring) colorability (Register.S.remove s todo)
+        	    match c with
+        	    | Reg register ->
+        	        let colorability = Register.S.fold
+                    begin fun r cs ->
+                        Register.M.add r (Register.S.remove register (Register.M.find r cs)) cs
+                    end (Register.M.find s ig).intfs colorability in (* Update colorability by removing color from all neighbours of s *)
+                    color_rec (Register.M.add s c coloring) colorability (Register.S.remove s todo)
+                | _ -> assert false
         in
     let todo = Register.M.fold (fun r arc s -> if not (Register.is_hw r) then Register.S.add r s else s) ig Register.S.empty in (* Registers to color *)
     let colorability = Register.M.map (fun arc  -> Register.S.diff Register.allocatable arc.intfs) ig in

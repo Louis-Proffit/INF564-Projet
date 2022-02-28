@@ -63,6 +63,8 @@ let () =
     if !interp_ertl then begin ignore (Ertlinterp.program p); exit 0 end;
     let coloring = Graph.program lp in
     Graph.print std_formatter coloring;
+    let ltl = Ltl.program coloring lp in
+    Ltltree.print_file std_formatter ltl;
     (* ... *)
   with
     | Lexer.Lexical_error c ->
