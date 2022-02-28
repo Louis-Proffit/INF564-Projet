@@ -7,9 +7,9 @@ exception Error of string
 let typ_size = function
     | Ttree.Tint
     | Ttree.Ttypenull
-    | Ttree.Tvoidstar -> 64l
-    | Ttree.Tpointer t -> 64l
-    | Ttree.Tstruct  s -> Int32.mul 64l (Int32.of_int (Hashtbl.length s.str_fields))
+    | Ttree.Tvoidstar -> 8l
+    | Ttree.Tpointer t -> 8l
+    | Ttree.Tstruct s -> Int32.of_int (8 * (Hashtbl.length s.str_fields))
 
 let rec check_return_stmt = function
       | Sskip -> false
@@ -53,9 +53,9 @@ and map_expr (e:Ttree.expr) =
     opt_expr begin match e.expr_node with
       | Ttree.Econst n -> Econst n
       | Ttree.Eaccess_local (i,vt) -> Eaccess_local(full_ident i vt)
-      | Ttree.Eaccess_field (e,f) -> Eaccess_shift(map_expr e,f.shift)
+      | Ttree.Eaccess_field (e,f) -> Eaccess_shift(map_expr e, 8 * f.shift)
       | Ttree.Eassign_local (i,e,vt) -> Eassign_local(full_ident i vt, map_expr e)
-      | Ttree.Eassign_field (e1,f,e2) -> Eassign_shift(map_expr e1,f.shift, map_expr e2)
+      | Ttree.Eassign_field (e1,f,e2) -> Eassign_shift(map_expr e1, 8 * f.shift, map_expr e2)
       | Ttree.Eunop (u,e) -> Eunop(u, map_expr e)
       | Ttree.Ebinop (Ptree.Badd,e1,e2) -> Ebinop(Ptree.Badd, map_expr e1, map_expr e2)
       | Ttree.Ebinop (b,e1,e2) -> Ebinop(b, map_expr e1, map_expr e2)

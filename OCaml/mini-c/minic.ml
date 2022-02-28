@@ -58,9 +58,11 @@ let () =
     if debug then Rtltree.print_file std_formatter p;
     if !interp_rtl then begin ignore (Rtlinterp.program p); exit 0 end;
     let p = Ertl.program p in
-    let lg = Liveness.liveness p in
-    if debug then Ertltree.print_file std_formatter lg p;
+    let lp = Liveness.liveness p in
+    if debug then Ertltree.print_file std_formatter lp;
     if !interp_ertl then begin ignore (Ertlinterp.program p); exit 0 end;
+    let coloring = Graph.program lp in
+    Graph.print std_formatter coloring;
     (* ... *)
   with
     | Lexer.Lexical_error c ->

@@ -61,6 +61,15 @@ type file = {
   funs : deffun list;
 }
 
+type liveness_fun = {
+    fun_def:deffun;
+    live_info:lg;
+}
+
+type liveness_file = {
+    funs_info :liveness_fun list;
+}
+
 (** {2 Calcul des définitions et utilisations de chaque instruction} *)
 
 let rec prefix i = function
@@ -177,20 +186,22 @@ let visit f g entry =
 let print_set = Register.print_set
 
 let print_live_info fmt li =
-    fprintf fmt "d={%a} u={%a} p={%a} i={%a} o={%a}"
-    print_set li.defs print_set li.uses Label.print_set li.pred print_set li.ins print_set li.outs
+    fprintf fmt ""
+    (*fprintf fmt "d={%a} u={%a} p={%a} i={%a} o={%a}"
+    print_set li.defs print_set li.uses Label.print_set li.pred print_set li.ins print_set li.outs*)
 
 let print_graph fmt =
     visit (fun l i li -> fprintf fmt "  %a: %a %a\n" Label.print l print_instr i print_live_info li)
 
-let print_deffun fmt lg f =
-  fprintf fmt "%s(%d)@\n" f.fun_name f.fun_formals;
+let print_deffun fmt f =
+    let fun_def = f.fun_def in
+  fprintf fmt "%s(%d)@\n" fun_def.fun_name fun_def.fun_formals;
   fprintf fmt "  @[";
-  fprintf fmt "entry : %a@\n" Label.print f.fun_entry;
-  fprintf fmt "locals: %a \n" Register.print_set f.fun_locals;
-  print_graph fmt lg f.fun_entry;
+  fprintf fmt "entry : %a@\n" Label.print fun_def.fun_entry;
+  fprintf fmt "locals: %a \n" Register.print_set fun_def.fun_locals;
+  print_graph fmt f.live_info fun_def.fun_entry;
   fprintf fmt "@]@."
 
-let print_file fmt lg p =
+let print_file fmt p =
   fprintf fmt "=== ERTL ========================================================================\n";
-  List.iter (print_deffun fmt lg) p.funs
+  List.iter (print_deffun fmt) p.funs_info

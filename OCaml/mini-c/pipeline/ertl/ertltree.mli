@@ -60,6 +60,15 @@ type file = {
   funs : deffun list;
 }
 
+type liveness_fun = {
+    fun_def:deffun;
+    live_info:lg;
+}
+
+type liveness_file = {
+    funs_info :liveness_fun list;
+}
+
 (** {2 Quelques fonctions qui seront utiles pour la phase suivante} *)
 
 val succ: instr -> label list
@@ -77,6 +86,6 @@ val print_instr: Format.formatter -> instr -> unit
 
 val print_graph: Format.formatter -> lg -> label -> unit
 
-val print_deffun: Format.formatter -> lg -> deffun -> unit
+val print_deffun: Format.formatter -> liveness_fun -> unit
 
-val print_file: Format.formatter -> lg -> file -> unit
+val print_file: Format.formatter -> liveness_file -> unit

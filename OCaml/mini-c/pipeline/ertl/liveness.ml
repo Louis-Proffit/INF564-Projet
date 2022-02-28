@@ -48,6 +48,6 @@ let liveness lg (f:deffun) =
     killdal lg ws
 
 let liveness (f:file) =
-    let lg = ref Label.M.empty in
-    List.iter (liveness lg) f.funs;
-    !lg
+    {
+        funs_info = List.map (fun x -> let lg = ref Label.M.empty in liveness lg x;{fun_def=x;live_info=(!lg);}) f.funs;
+    }

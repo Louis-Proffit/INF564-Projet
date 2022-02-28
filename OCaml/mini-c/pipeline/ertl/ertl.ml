@@ -26,30 +26,30 @@ let map_instr il = function
     let stack_pointer_shift_label = Label.fresh () in
     let move_result_label = Label.fresh () in
     let call_label = Label.fresh () in
-    add label_pop_args (Embinop(Msub, stack_pointer_shift_reg, Register.rsp, l));
-    add stack_pointer_shift_label (Econst(Int32.of_int (8 * count_on_stack), stack_pointer_shift_reg, label_pop_args));
+    add label_pop_args (Embinop(Madd, stack_pointer_shift_reg, Register.rsp, l));
+    add stack_pointer_shift_label (Econst(Int32.of_int (0 + 8 * count_on_stack), stack_pointer_shift_reg, label_pop_args));
     add move_result_label (Embinop(Mmov, Register.result, r, stack_pointer_shift_label));
     add call_label (Ecall(i, count_on_reg, move_result_label));
+    let rec mov_arg_stack regs label =
+        begin match regs with
+        | [] -> label
+        | r::t ->
+            let push_label = Label.fresh () in
+            add push_label (Epush_param (r, label));
+            mov_arg_stack t push_label
+        end in
+
     let rec mov_arg_reg regs params label =
         begin match (regs, params) with
-        | ([],[]) -> label (* Params can't be empty while there are still arguments *)
-        | (_,[]) -> assert false
-        | ([], _) -> label
+        | ([],_) -> label
+        | (regs,[]) -> mov_arg_stack regs label
         | (reg :: q1, param :: q2) ->
             let mov_label = Label.fresh () in
             add mov_label (Embinop (Mmov, reg, param, label));
             mov_arg_reg q1 q2 mov_label
         end in
-    let rec mov_arg_stack regs label count =
-        begin match (regs, count) with
-        | (_,0) -> mov_arg_reg (List.rev regs) Register.parameters label
-        | ([], _) -> assert false
-        | (r :: q, c) ->
-            let push_label = Label.fresh () in
-            add push_label (Epush_param (r, label));
-            mov_arg_stack q push_label (c - 1)
-        end in
-    let mov_arg_label = mov_arg_stack (List.rev rl) call_label count_on_stack in
+
+    let mov_arg_label = mov_arg_reg rl Register.parameters call_label in
     add il (Egoto mov_arg_label)
     | Rtltree.Egoto l -> add il (Egoto l)
 
@@ -59,32 +59,28 @@ let map_fun (f:Rtltree.deffun) =
     let entry_label = Label.fresh () in
     let allocate_frame_label = Label.fresh() in
 
-    let arg_count = List.length f.fun_formals in
-    let args_on_stack = max (arg_count - 6) 0 in
-
     let callee_saved_regs = List.map (fun x -> Register.fresh ()) Register.callee_saved in
+
+     let rec args_to_stack args label count =
+        begin match args with
+            | [] -> label
+            | arg::t ->
+                let new_label = Label.fresh () in
+                add new_label (Eget_param (count, arg, label));
+                args_to_stack t new_label (count + 8)
+        end in
 
     let rec args_to_reg args regs label =
         begin match (args, regs) with
         | ([], _) -> label
-        | (_,[]) -> assert false
+        | (args,[]) -> args_to_stack args label 16
         | (arg::q1, reg::q2) ->
             let new_label = Label.fresh () in
             add new_label (Embinop(Mmov, reg, arg, label));
             args_to_reg q1 q2 new_label
         end in
 
-    let rec args_to_stack args label count =
-        begin match (List.rev args, count) with
-        | (_,0) -> args_to_reg (List.rev args) Register.parameters label
-        | ([], _) -> assert false
-        | (arg::q, c) ->
-            let new_label = Label.fresh () in
-            add new_label (Eget_param (count, arg, label));
-            args_to_stack q new_label (c - 1)
-        end in
-
-    let get_args_label = args_to_stack f.fun_formals f.fun_entry args_on_stack in
+    let get_args_label = args_to_reg f.fun_formals Register.parameters f.fun_entry in
 
     let save_callee_saved_regs_label = List.fold_right2
     (fun mreg reg label ->
