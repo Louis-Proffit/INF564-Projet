@@ -72,7 +72,6 @@ let make (lg:Ertltree.lg) =
     Label.M.iter (fun l li -> label_preference li) lg;
     Label.M.iter (fun l li -> label_interference li) lg
 
-
 (**
 Colors the graph
 *)
@@ -87,15 +86,32 @@ let color ig =
                 Priority 1 : whichever register has an available color
                 *)
                 (* Priorities 4 and 2 are missing *)
-                if priority < 3 && (Register.S.cardinal (Register.M.find r colorability)) == 1 then (3,r)
-                else if priority < 1 then (1,r)
+                if (priority = 4) then (priority,solution) else
+                if (priority < 3 && Register.S.cardinal (Register.M.find r colorability) = 1) then
+                    let single_color = Register.S.choose (Register.M.find r colorability) in
+                    if (Register.S.fold
+                    begin
+                        fun r_pref current ->
+                         current || (Register.S.mem single_color (Register.M.find r_pref colorability))
+                    end
+                    (Register.M.find r ig).prefs false) then (4, r)
+                    else (3,r)
+                else
+                if (priority < 2 && Register.S.fold
+                    begin
+                        fun r_pref current ->
+                         current || (Register.M.mem r_pref coloring)
+                    end
+                (Register.M.find r ig).prefs false) then (2, r)
+                else
+                if (priority < 1 && Register.S.cardinal (Register.M.find r colorability) > 0) then (1,r)
                 else (priority,solution)
             end in
         if (Register.S.is_empty todo) then
         coloring
         else
         	let p,s = Register.S.fold priority todo (0,Register.tmp1) in
-        	if (s = Register.tmp1) then (* No register found to color*)
+        	if (p = 0) then (* No register found to color*)
         	    let r = Register.S.choose todo in
         	    color_rec (Register.M.add r (Spilled 0) coloring) colorability (Register.S.remove r todo)
         	else (* Register found *)
@@ -106,7 +122,7 @@ let color ig =
         	    end (Register.M.find s ig).intfs colorability in (* Update colorability by removing color from all neighbours of s *)
         	    color_rec (Register.M.add s (Reg color) coloring) colorability (Register.S.remove s todo)
         in
-    let todo = Register.M.fold (fun r arc s -> Register.S.add r s) ig Register.S.empty in (* Registers to color *)
+    let todo = Register.M.fold (fun r arc s -> if not (Register.is_hw r) then Register.S.add r s else s) ig Register.S.empty in (* Registers to color *)
     let colorability = Register.M.map (fun arc  -> Register.S.diff Register.allocatable arc.intfs) ig in
     color_rec (Register.M.empty) colorability todo
 
@@ -121,10 +137,10 @@ let print_color fmt = function
   | Spilled n -> fprintf fmt "stack %d" n
 
 let print fmt cm =
-    print_graph !graph;
     Register.M.iter
     (fun r cr -> printf "%a -> %a@\n" Register.print r print_color cr) cm
 
 let program (f:Ertltree.liveness_file) =
     List.iter (fun (f:Ertltree.liveness_fun) -> make f.live_info) f.funs_info;
+    print_graph !graph;
     color !graph
