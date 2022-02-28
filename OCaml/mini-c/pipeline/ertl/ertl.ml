@@ -56,7 +56,6 @@ let map_instr il = function
 let map_fun (f:Rtltree.deffun) =
     graph := Label.M.empty;
 
-    let entry_label = Label.fresh () in
     let allocate_frame_label = Label.fresh() in
 
     let callee_saved_regs = List.map (fun x -> Register.fresh ()) Register.callee_saved in
@@ -90,7 +89,6 @@ let map_fun (f:Rtltree.deffun) =
     callee_saved_regs Register.callee_saved get_args_label in
 
     add allocate_frame_label (Ealloc_frame save_callee_saved_regs_label);
-    add entry_label (Egoto allocate_frame_label);
 
     (* Work on the body of the function *)
     Label.M.iter map_instr f.fun_body;
@@ -110,7 +108,7 @@ let map_fun (f:Rtltree.deffun) =
         fun_name = f.fun_name;
         fun_formals = List.length f.fun_formals;
         fun_locals = f.fun_locals;
-        fun_entry = entry_label;
+        fun_entry = allocate_frame_label;
         fun_body = !graph;
     }
 
