@@ -42,7 +42,7 @@ let map_instr il = function
     let rec mov_arg_reg regs params label =
         begin match (regs, params) with
         | ([],_) -> label
-        | (regs,[]) -> mov_arg_stack regs label
+        | (regs,[]) -> mov_arg_stack (List.rev regs) label
         | (reg :: q1, param :: q2) ->
             let mov_label = Label.fresh () in
             add mov_label (Embinop (Mmov, reg, param, label));
@@ -72,7 +72,7 @@ let map_fun (f:Rtltree.deffun) =
     let rec args_to_reg args regs label =
         begin match (args, regs) with
         | ([], _) -> label
-        | (args,[]) -> args_to_stack args label 16
+        | (args,[]) -> args_to_stack (List.rev args) label 16
         | (arg::q1, reg::q2) ->
             let new_label = Label.fresh () in
             add new_label (Embinop(Mmov, reg, arg, label));

@@ -77,7 +77,7 @@ Colors the graph
 *)
 let color ig =
     let rec color_rec coloring colorability todo =
-        let rec priority r (priority,solution) =
+        let rec priority r (priority,solution,c) =
             begin
                 (*
                 Priority 4 : one color available only and an preference edge towards that color
@@ -86,7 +86,7 @@ let color ig =
                 Priority 1 : whichever register has an available color
                 *)
                 (* Priorities 4 and 2 are missing *)
-                if (priority = 4) then (priority,solution) else
+                if (priority = 4) then (priority,solution,color) else
                 if (priority < 3 && Register.S.cardinal (Register.M.find r colorability) = 1) then
                     let single_color = Register.S.choose (Register.M.find r colorability) in
                     if (Register.S.fold
@@ -94,23 +94,22 @@ let color ig =
                         fun r_pref current ->
                          current || (Register.S.mem single_color (Register.M.find r_pref colorability))
                     end
-                    (Register.M.find r ig).prefs false) then (4, r)
-                    else (3,r)
+                    (Register.M.find r ig).prefs false) then (4, r, single_color)
+                    else (3, r, single_color)
                 else
-                if (priority < 2 && Register.S.fold
-                    begin
-                        fun r_pref current ->
-                         current || (Register.M.mem r_pref coloring)
-                    end
-                (Register.M.find r ig).prefs false) then (2, r)
-                else
-                if (priority < 1 && Register.S.cardinal (Register.M.find r colorability) > 0) then (1,r)
-                else (priority,solution)
+                    let has_pref_with_color,new_c = Register.S.fold
+                        begin
+                            fun r_pref (current,color_loc) ->
+                            if current then (current,color_loc) else begin try (true,Register.M.find r_pref coloring) with Not_found -> (false, color_loc) end
+                        end (Register.M.find r ig).prefs (false,Reg Register.tmp1)) in
+                    if (priority < 2 && has_pref_with_color) then (2, r, new_c) else
+                    if (priority < 1) then begin try (1, r, Register.S.choose (Register.M.find r colorability)) with Not_found -> (priority,solution,c) end
+                    else (priority,solution,c)
             end in
         if (Register.S.is_empty todo) then
         coloring
         else
-        	let p,s = Register.S.fold priority todo (0,Register.tmp1) in
+        	let p,s,c = Register.S.fold priority todo (0,Register.tmp1, Reg Register.tmp1) in
         	if (p = 0) then (* No register found to color*)
         	    let r = Register.S.choose todo in
         	    color_rec (Register.M.add r (Spilled 0) coloring) colorability (Register.S.remove r todo)
@@ -137,10 +136,10 @@ let print_color fmt = function
   | Spilled n -> fprintf fmt "stack %d" n
 
 let print fmt cm =
+    print_graph !graph;
     Register.M.iter
     (fun r cr -> printf "%a -> %a@\n" Register.print r print_color cr) cm
 
 let program (f:Ertltree.liveness_file) =
     List.iter (fun (f:Ertltree.liveness_fun) -> make f.live_info) f.funs_info;
-    print_graph !graph;
     color !graph
