@@ -9,7 +9,7 @@ let add l i =
 let lookup c r =
   if Register.is_hw r then Reg r else Register.M.find r c
 
-let map_instr c frame_size il = function
+let rec map_instr c frame_size il = function
   | Ertltree.Econst (n, r, l) -> add il (Econst (n, lookup c r, l))
   | Ertltree.Emunop (op, r, l) -> add il (Emunop (op, lookup c r, l))
   | Ertltree.Embinop (op, r1, r2, l) -> add il (Embinop (op, lookup c r1, lookup c r2, l))
@@ -49,16 +49,19 @@ let map_instr c frame_size il = function
                                       add label_store1 (Estore (Register.tmp1, Register.tmp2, n, label_store2));
                                       add il (Embinop (Mmov, Spilled i1, Reg Register.tmp2, label_store1));
       end
-  | Ertltree.Ealloc_frame l -> let label_push_rbp = Label.fresh () and label_chg_rbp = Label.fresh () in
+  | Ertltree.Ealloc_frame l -> let label_push_rbp = Label.fresh () in
                                add label_push_rbp (Epush (Reg Register.rbp, l));
-                               add label_chg_rbp (Embinop (Mmov, Reg Register.rsp, Reg Register.rbp, label_push_rbp));
 
                                if frame_size <> 0 then
-                                 let label_chg_rsp = Label.fresh () in
+                                 let label_chg_rsp = Label.fresh () and label_chg_rbp = Label.fresh () in
+                                 add label_chg_rbp (Embinop (Mmov, Reg Register.rsp, Reg Register.rbp, label_push_rbp));
                                  add label_chg_rsp (Embinop (Madd, Reg Register.tmp1, Reg Register.rsp, label_chg_rbp));
                                  add il (Econst (Int32.of_int (8 * frame_size), Reg Register.tmp1, label_chg_rsp))
-                               else add il (Egoto label_chg_rbp)
-  | _ -> assert false
+                               else add il (Embinop (Mmov, Reg Register.rsp, Reg Register.rbp, label_push_rbp))
+  | Ertltree.Edelete_frame l -> let label_pop_rbp = Label.fresh () in
+                                add label_pop_rbp (Epop (Register.rbp, l));
+                                add il (Embinop (Mmov, Reg Register.rbp, Reg Register.rsp, label_pop_rbp))
+  | Ertltree.Eget_param (i, r, l) -> map_instr c frame_size il (Ertltree.Eload (Register.rbp, i, r, l))
 
 
 let ltl_fun (c:Graph.coloring) (f:Ertltree.liveness_fun) =
