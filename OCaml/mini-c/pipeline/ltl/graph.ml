@@ -91,7 +91,9 @@ let color ig =
                 if (Register.S.fold
                 begin
                     fun r_pref current ->
+                    if not (Register.is_hw r_pref) then
                      current || (Register.S.mem single_color (Register.M.find r_pref colorability))
+                     else current
                 end
                 (Register.M.find r ig).prefs false) then (4, r, Reg single_color)
                 else (3, r, Reg single_color)
