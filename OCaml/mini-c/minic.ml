@@ -69,7 +69,9 @@ let () =
     let p = Ltl.program coloring lp in
     if debug then Ltltree.print_file std_formatter p;
     if !interp_ltl then begin ignore (Ltlinterp.program p); exit 0 end;
-    let p = Linearising.program p in ()
+    let p = Linearising.program p in
+    if (debug) then X86_64.print_program std_formatter p else X86_64.print_in_file "a.out" p;
+    ()
     (* ... *)
   with
     | Lexer.Lexical_error c ->

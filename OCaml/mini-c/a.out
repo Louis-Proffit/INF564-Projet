@@ -1,0 +1,10 @@
+	.text
+	.globl	main
+main:
+	movq %rsp, %rbp
+	pushq %rbp
+	movq $42, %rax
+	movq %rbp, %rsp
+	popq %rbp
+	ret
+	.data
