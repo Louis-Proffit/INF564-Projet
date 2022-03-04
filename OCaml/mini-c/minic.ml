@@ -10,6 +10,7 @@ let parse_only = ref false
 let type_only = ref false
 let interp_rtl = ref false
 let interp_ertl = ref false
+let interp_ltl = ref false
 let debug = ref false
 
 let ifile = ref ""
@@ -25,6 +26,8 @@ let options =
      "  interprets RTL (and does not compile)";
    "--interp-ertl", Arg.Set interp_ertl,
      "  interprets ERTL (and does not compile)";
+   "--interp-ltl", Arg.Set interp_ltl,
+     "  interprets LTL (and does not compile)";
    "--debug", Arg.Set debug,
      "  debug mode";
    ]
@@ -63,8 +66,10 @@ let () =
     if !interp_ertl then begin ignore (Ertlinterp.program p); exit 0 end;
     let coloring = Graph.program lp in
     Graph.print std_formatter coloring;
-    let ltl = Ltl.program coloring lp in
-    Ltltree.print_file std_formatter ltl;
+    let p = Ltl.program coloring lp in
+    if debug then Ltltree.print_file std_formatter p;
+    if !interp_ltl then begin ignore (Ltlinterp.program p); exit 0 end;
+    let p = Linearising.program p in ()
     (* ... *)
   with
     | Lexer.Lexical_error c ->

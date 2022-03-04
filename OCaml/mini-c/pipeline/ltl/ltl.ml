@@ -12,7 +12,13 @@ let lookup c r =
 let rec map_instr c frame_size il = function
   | Ertltree.Econst (n, r, l) -> add il (Econst (n, lookup c r, l))
   | Ertltree.Emunop (op, r, l) -> add il (Emunop (op, lookup c r, l))
-  | Ertltree.Embinop (op, r1, r2, l) -> add il (Embinop (op, lookup c r1, lookup c r2, l))
+  | Ertltree.Embinop (op, r1, r2, l) ->
+  let cr1 = lookup c r1 in
+  let cr2 = lookup c r2 in
+  begin match op with
+  | Ops.Mmov when cr1 = cr2 -> add il (Egoto l)
+  | _ -> add il (Embinop (op, cr1, cr2, l))
+  end
   | Ertltree.Emubranch (mu, r, l1, l2) -> add il (Emubranch (mu, lookup c r, l1, l2))
   | Ertltree.Embbranch (mb, r1, r2, l1, l2) -> add il (Embbranch (mb, lookup c r1, lookup c r2, l1, l2))
   | Ertltree.Epush_param (r, l) -> add il (Epush (lookup c r, l))
@@ -51,7 +57,6 @@ let rec map_instr c frame_size il = function
       end
   | Ertltree.Ealloc_frame l -> let label_push_rbp = Label.fresh () in
                                add label_push_rbp (Epush (Reg Register.rbp, l));
-
                                if frame_size <> 0 then
                                  let label_chg_rsp = Label.fresh () and label_chg_rbp = Label.fresh () in
                                  add label_chg_rbp (Embinop (Mmov, Reg Register.rsp, Reg Register.rbp, label_push_rbp));
@@ -66,6 +71,7 @@ let rec map_instr c frame_size il = function
 
 let ltl_fun (c:Graph.coloring) (f:Ertltree.liveness_fun) =
     graph := Label.M.empty;
+    Label.M.iter (fun l (li:Ertltree.live_info) -> map_instr c 0 l li.instr) f.live_info;
     let fun_def = f.fun_def in
     {
       fun_name = fun_def.fun_name;

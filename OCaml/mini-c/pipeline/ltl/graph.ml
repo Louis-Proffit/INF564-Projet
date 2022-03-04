@@ -76,6 +76,7 @@ let make (lg:Ertltree.lg) =
 Colors the graph
 *)
 let color ig =
+    let stack_index = ref 0 in
     let rec color_rec coloring colorability todo =
         let rec priority r (priority,solution,c) =
             (*
@@ -112,7 +113,8 @@ let color ig =
         	let p,s,c = Register.S.fold priority todo (0, Register.tmp1, Reg Register.tmp1) in
         	if (p = 0) then (* No register found to color *)
         	    let r = Register.S.choose todo in
-        	    color_rec (Register.M.add r (Spilled 0) coloring) colorability (Register.S.remove r todo)
+        	    stack_index := !stack_index + 1;
+        	    color_rec (Register.M.add r (Spilled !stack_index) coloring) colorability (Register.S.remove r todo)
         	else (* Register found *)
         	    match c with
         	    | Reg register ->
@@ -125,10 +127,10 @@ let color ig =
                     color_rec (Register.M.add s c coloring) colorability (Register.S.remove s todo)
                 | _ -> assert false (* The priority function doesn't return a spilled value *)
         in
-    let todo = Register.M.fold (fun r arc s -> if not (Register.is_hw r) then Register.S.add r s else s) ig Register.S.empty in (* Registers to color *)
-    let colorability = Register.M.fold (fun r arc cs -> if not (Register.is_hw r) then Register.M.add r (Register.S.diff Register.allocatable arc.intfs) cs else cs) ig Register.M.empty in
-    (*List.iter (fun ((r,cs):(Register.t*Register.set)) -> printf "%s -> colorability :" (r:>string);(Register.S.iter (fun r -> printf "%s " (r:>string))cs); printf "\n") (Register.M.bindings colorability);*)
-    color_rec (Register.M.empty) colorability todo
+    let todo = Register.M.fold (fun r arc s -> Register.S.add r s) ig Register.S.empty in (* Registers to color *)
+    let colorability = Register.M.fold (fun r arc cs -> Register.M.add r (Register.S.diff Register.allocatable arc.intfs) cs) ig Register.M.empty in
+    let coloring = Register.S.fold (fun r co -> if (Register.S.mem r Register.allocatable) then Register.M.add r (Reg r) co else co) todo (Register.M.empty) in
+    color_rec coloring colorability todo
 
 let print_graph ig =
   Register.M.iter (
@@ -141,7 +143,6 @@ let print_color fmt = function
   | Spilled n -> fprintf fmt "stack %d" n
 
 let print fmt cm =
-    print_graph !graph;
     Register.M.iter
     (fun r cr -> printf "%a -> %a@\n" Register.print r print_color cr) cm
 
