@@ -31,3 +31,6 @@ _opam/
 
 .class
 .jar
+
+# Object file processed by the compiler
+*.s
