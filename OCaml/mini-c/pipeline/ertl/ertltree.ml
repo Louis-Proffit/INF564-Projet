@@ -176,32 +176,24 @@ let visit f g entry =
   let rec visit l =
     if not (Hashtbl.mem visited l) then begin
       Hashtbl.add visited l ();
-      let li = Label.M.find l g in
-      f l li.instr li;
-      List.iter visit (succ li.instr)
+      let i = Label.M.find l g in
+      f l i;
+      List.iter visit (succ i)
     end
   in
   visit entry
 
-let print_set = Register.print_set
-
-let print_live_info fmt li =
-    fprintf fmt ""
-    (*fprintf fmt "d={%a} u={%a} p={%a} i={%a} o={%a}"
-    print_set li.defs print_set li.uses Label.print_set li.pred print_set li.ins print_set li.outs*)
-
 let print_graph fmt =
-    visit (fun l i li -> fprintf fmt "  %a: %a %a\n" Label.print l print_instr i print_live_info li)
+    visit (fun l i -> fprintf fmt "  %a: %a\n" Label.print l print_instr i)
 
 let print_deffun fmt f =
-    let fun_def = f.fun_def in
-  fprintf fmt "%s(%d)@\n" fun_def.fun_name fun_def.fun_formals;
+  fprintf fmt "%s(%d)@\n" f.fun_name f.fun_formals;
   fprintf fmt "  @[";
-  fprintf fmt "entry : %a@\n" Label.print fun_def.fun_entry;
-  fprintf fmt "locals: %a \n" Register.print_set fun_def.fun_locals;
-  print_graph fmt f.live_info fun_def.fun_entry;
+  fprintf fmt "entry : %a@\n" Label.print f.fun_entry;
+  fprintf fmt "locals: %a \n" Register.print_set f.fun_locals;
+  print_graph fmt f.fun_body f.fun_entry;
   fprintf fmt "@]@."
 
 let print_file fmt p =
   fprintf fmt "=== ERTL ========================================================================\n";
-  List.iter (print_deffun fmt) p.funs_info
+  List.iter (print_deffun fmt) p.funs

@@ -1,6 +1,27 @@
 
 open Format
-open Ltltree
+
+type ident = string
+
+type label = Label.t
+
+type instr = Ertltree.instr
+
+type register = Register.t
+
+type cfg = Ertltree.instr Label.map
+
+type live_info = {
+         instr: Ertltree.instr;
+          succ: label list;
+  mutable pred: Label.set;
+          defs: Register.set;
+          uses: Register.set;
+  mutable  ins: Register.set;
+  mutable outs: Register.set;
+}
+
+type lg = live_info Label.map
 
 type arcs = { mutable prefs: Register.set; mutable intfs: Register.set }
 type igraph = arcs Register.map
@@ -8,7 +29,68 @@ type igraph = arcs Register.map
 type color = Ltltree.operand
 type coloring = color Register.map
 
+type deffun = {
+    fun_name : ident;
+    fun_entry : label;
+    fun_body : cfg;
+    fun_stack_count : int;
+    fun_coloring : coloring;
+}
+
+type file = {
+    funs : deffun list;
+}
+
+
+(* ---------------------------------- *)
+
 let graph = ref Register.M.empty
+let lg = ref Label.M.empty
+
+let add lg l li = lg := Label.M.add l li !lg
+
+let liveness_succ_def_use lg (l:Label.M.key) (i:Ertltree.instr) =
+    let defs, uses = Ertltree.def_use i in
+    let succ = Ertltree.succ i in
+    add lg l {
+      instr = i;
+      succ = succ;
+      pred = Label.S.empty;
+      defs = Register.S.of_list defs;    (* définitions *)
+      uses = Register.S.of_list uses;    (* utilisations *)
+      ins = Register.S.empty;    (* variables vivantes en entrée *)
+      outs = Register.S.empty;    (* variables vivantes en sortie *)
+    }
+
+let liveness_pred lg (l:Label.M.key) (li:live_info) =
+    Label.M.iter (fun il mli -> if (List.mem l mli.succ) then li.pred <- (Label.S.add il li.pred)) !lg
+
+let outs lg li =
+    let s = ref Register.S.empty in
+    List.iter (fun l -> s := Register.S.union !s (Label.M.find l !lg).ins) li.succ;
+    !s
+
+let ins lg li =
+    Register.S.union li.uses (Register.S.diff li.outs li.defs)
+
+let rec killdal lg ws =
+    if (Label.S.is_empty !ws) then () else
+    let l = Label.S.choose !ws in
+    ws := Label.S.remove l !ws;
+    let li = Label.M.find l !lg in
+    let old_in = (Label.M.find l !lg).ins in
+    li.outs <- outs lg li;
+    li.ins <- ins lg li;
+    begin if not (Register.S.equal old_in li.ins) then ws := Label.S.union !ws li.pred end;
+    killdal lg ws
+
+let liveness lg (f:Ertltree.deffun) =
+    Label.M.iter (liveness_succ_def_use lg) f.fun_body;
+    Label.M.iter (liveness_pred lg) !lg;
+    let ws = ref Label.S.empty in
+    Label.M.iter (fun l li -> ws := Label.S.add l !ws;()) !lg;
+    killdal lg ws
+
 
 (**
 Adds a preference edge (twice, to be undirected)
@@ -26,12 +108,14 @@ let add_intf r1 r2 =
     let arc1 = try Register.M.find r1 !graph with Not_found -> (let arc1 = {prefs=Register.S.empty;intfs=Register.S.empty} in graph := Register.M.add r1 arc1 !graph;arc1) in
     arc1.intfs<-Register.S.add r2 arc1.intfs;
     let arc2 = try Register.M.find r2 !graph with Not_found -> (let arc2 = {prefs=Register.S.empty;intfs=Register.S.empty} in graph := Register.M.add r2 arc2 !graph;arc2) in
-    arc2.intfs<-Register.S.add r1 arc2.intfs
+    arc2.intfs<-Register.S.add r1 arc2.intfs;
+    arc1.prefs<-Register.S.remove r2 arc1.prefs;
+    arc2.prefs<-Register.S.remove r1 arc2.prefs
 
 (**
 Adds preference edges for that instruction
 *)
-let label_preference (li:Ertltree.live_info) =
+let label_preference (li:live_info) =
     begin match li.instr with
     | Ertltree.Embinop(Mmov,r1,r2,_) -> if r1<>r2 then add_pref r1 r2
     | _ -> ()
@@ -40,7 +124,7 @@ let label_preference (li:Ertltree.live_info) =
 (**
 Adds interference edges for that instruction
 *)
-let label_interference (li:Ertltree.live_info) =
+let label_interference (li:live_info) =
     begin match li.instr with
     | Ertltree.Embinop(Mmov,r1,r2,_) ->
         Register.S.iter
@@ -67,7 +151,7 @@ let label_interference (li:Ertltree.live_info) =
 (**
 Adds all interference and preference labels
 *)
-let make (lg:Ertltree.lg) =
+let make lg =
     graph := Register.M.empty;
     Label.M.iter (fun l li -> label_preference li) lg;
     Label.M.iter (fun l li -> label_interference li) lg
@@ -76,8 +160,7 @@ let make (lg:Ertltree.lg) =
 Colors the graph
 *)
 let color ig =
-    let stack_index = ref 0 in
-    let rec color_rec coloring colorability todo =
+    let rec color_rec coloring colorability todo stack_count =
         let rec priority r (priority,solution,c) =
             (*
             Priority 4 : one color available only and an preference edge towards that color
@@ -96,41 +179,40 @@ let color ig =
                      current || (Register.S.mem single_color (Register.M.find r_pref colorability))
                      else current
                 end
-                (Register.M.find r ig).prefs false) then (4, r, Reg single_color)
-                else (3, r, Reg single_color)
+                (Register.M.find r ig).prefs false) then (4, r, Ltltree.Reg single_color)
+                else (3, r, Ltltree.Reg single_color)
             else
                 let has_pref_with_color, new_c = Register.S.fold
                     begin
                         fun r_pref (current,color_loc) ->
                         if current then (current,color_loc) else begin try (true, Register.M.find r_pref coloring) with Not_found -> (false, color_loc) end
-                    end (Register.M.find r ig).prefs (false,Reg Register.tmp1) in
+                    end (Register.M.find r ig).prefs (false,Ltltree.Reg Register.tmp1) in
                 if (priority < 2 && has_pref_with_color) then (2, r, new_c) else
-                if (priority < 1) then begin try (1, r, Reg (Register.S.choose (Register.M.find r colorability))) with Not_found -> (priority,solution,c) end
+                if (priority < 1) then begin try (1, r, Ltltree.Reg (Register.S.choose (Register.M.find r colorability))) with Not_found -> (priority,solution,c) end
                 else (priority,solution,c)
             in
-        if (Register.S.is_empty todo) then coloring
+        if (Register.S.is_empty todo) then (coloring,stack_count)
         else
-        	let p,s,c = Register.S.fold priority todo (0, Register.tmp1, Reg Register.tmp1) in
+        	let p,s,c = Register.S.fold priority todo (0, Register.tmp1, Ltltree.Reg Register.tmp1) in
         	if (p = 0) then (* No register found to color *)
         	    let r = Register.S.choose todo in
-        	    stack_index := !stack_index + 1;
-        	    color_rec (Register.M.add r (Spilled !stack_index) coloring) colorability (Register.S.remove r todo)
+        	    color_rec (Register.M.add r (Ltltree.Spilled stack_count) coloring) colorability (Register.S.remove r todo) (stack_count + 1)
         	else (* Register found *)
         	    match c with
-        	    | Reg register ->
+        	    | Ltltree.Reg register ->
         	        let colorability = Register.S.fold
                     begin fun r _colorability ->
                         if not (Register.is_hw r) then
                             Register.M.add r (Register.S.remove register (Register.M.find r _colorability)) _colorability
                         else _colorability
                     end (Register.M.find s ig).intfs colorability in (* Update colorability by removing color from all neighbours of s *)
-                    color_rec (Register.M.add s c coloring) colorability (Register.S.remove s todo)
+                    color_rec (Register.M.add s c coloring) colorability (Register.S.remove s todo) stack_count
                 | _ -> assert false (* The priority function doesn't return a spilled value *)
         in
     let todo = Register.M.fold (fun r arc s -> Register.S.add r s) ig Register.S.empty in (* Registers to color *)
     let colorability = Register.M.fold (fun r arc cs -> Register.M.add r (Register.S.diff Register.allocatable arc.intfs) cs) ig Register.M.empty in
-    let coloring = Register.S.fold (fun r co -> if (Register.S.mem r Register.allocatable) then Register.M.add r (Reg r) co else co) todo (Register.M.empty) in
-    color_rec coloring colorability todo
+    let coloring = Register.S.fold (fun r co -> if (Register.S.mem r Register.allocatable) then Register.M.add r (Ltltree.Reg r) co else co) todo (Register.M.empty) in
+    color_rec coloring colorability todo 0
 
 let print_graph ig =
   Register.M.iter (
@@ -139,13 +221,28 @@ let print_graph ig =
   ) ig
 
 let print_color fmt = function
-  | Reg hr    -> fprintf fmt "%a" Register.print hr
-  | Spilled n -> fprintf fmt "stack %d" n
+  | Ltltree.Reg hr    -> fprintf fmt "%a" Register.print hr
+  | Ltltree.Spilled n -> fprintf fmt "stack %d" n
 
 let print fmt cm =
     Register.M.iter
     (fun r cr -> printf "%a -> %a@\n" Register.print r print_color cr) cm
 
-let program (f:Ertltree.liveness_file) =
-    List.iter (fun (f:Ertltree.liveness_fun) -> make f.live_info) f.funs_info;
-    color !graph
+let program_fun (df:Ertltree.deffun) =
+    lg := Label.M.empty;
+    graph := Register.M.empty;
+    liveness lg df;
+    make !lg;
+    let coloring, stack_count = color !graph in
+    {
+        fun_name = df.fun_name;
+        fun_entry = df.fun_entry;
+        fun_body = df.fun_body;
+        fun_stack_count = stack_count;
+        fun_coloring = coloring;
+    }
+
+let program (f:Ertltree.file) =
+    {
+        funs = List.map program_fun f.funs
+    }

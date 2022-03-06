@@ -55,31 +55,33 @@ let rec map_instr c frame_size il = function
                                       add label_store1 (Estore (Register.tmp1, Register.tmp2, n, label_store2));
                                       add il (Embinop (Mmov, Spilled i1, Reg Register.tmp2, label_store1));
       end
-  | Ertltree.Ealloc_frame l -> let label_push_rbp = Label.fresh () in
-                               add label_push_rbp (Epush (Reg Register.rbp, l));
-                               if frame_size <> 0 then
-                                 let label_chg_rsp = Label.fresh () and label_chg_rbp = Label.fresh () in
-                                 add label_chg_rbp (Embinop (Mmov, Reg Register.rsp, Reg Register.rbp, label_push_rbp));
-                                 add label_chg_rsp (Embinop (Madd, Reg Register.tmp1, Reg Register.rsp, label_chg_rbp));
-                                 add il (Econst (Int32.of_int (8 * frame_size), Reg Register.tmp1, label_chg_rsp))
-                               else add il (Embinop (Mmov, Reg Register.rsp, Reg Register.rbp, label_push_rbp))
-  | Ertltree.Edelete_frame l -> let label_pop_rbp = Label.fresh () in
+  | Ertltree.Ealloc_frame l -> if (frame_size <> 0) then
+                                let label_push_cst = Label.fresh () in
+                               let label_add_rsp = Label.fresh () and label_mov_rsp = Label.fresh () in
+                               add label_add_rsp (Embinop (Madd, Reg Register.tmp1, Reg Register.rsp, l));
+                               add label_push_cst (Econst (Int32.of_int (8 * frame_size), Reg Register.tmp1, label_add_rsp));
+                               add label_mov_rsp (Embinop (Mmov, Reg Register.rsp, Reg Register.rbp, label_push_cst));
+                               add il (Epush (Reg Register.rbp, label_mov_rsp))
+                               else
+                               add il (Egoto l)
+  | Ertltree.Edelete_frame l -> if (frame_size <> 0) then
+                                let label_pop_rbp = Label.fresh () in
                                 add label_pop_rbp (Epop (Register.rbp, l));
                                 add il (Embinop (Mmov, Reg Register.rbp, Reg Register.rsp, label_pop_rbp))
+                                else
+                                add il (Egoto l)
   | Ertltree.Eget_param (i, r, l) -> map_instr c frame_size il (Ertltree.Eload (Register.rbp, i, r, l))
 
-
-let ltl_fun (c:Graph.coloring) (f:Ertltree.liveness_fun) =
+let ltl_fun (f:Coloring.deffun) =
     graph := Label.M.empty;
-    Label.M.iter (fun l (li:Ertltree.live_info) -> map_instr c 0 l li.instr) f.live_info;
-    let fun_def = f.fun_def in
+    Label.M.iter (fun l (i:Ertltree.instr) -> map_instr f.fun_coloring f.fun_stack_count l i) f.fun_body;
     {
-      fun_name = fun_def.fun_name;
-      fun_entry = fun_def.fun_entry;
+      fun_name = f.fun_name;
+      fun_entry = f.fun_entry;
       fun_body = !graph;
     }
 
-let program (c:Graph.coloring) (f:Ertltree.liveness_file)  =
+let program (f:Coloring.file)  =
     {
-        funs = List.map (ltl_fun c) f.funs_info;
+        funs = List.map ltl_fun f.funs;
     }

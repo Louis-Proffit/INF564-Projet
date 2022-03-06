@@ -61,16 +61,15 @@ let () =
     if debug then Rtltree.print_file std_formatter p;
     if !interp_rtl then begin ignore (Rtlinterp.program p); exit 0 end;
     let p = Ertl.program p in
-    let lp = Liveness.liveness p in
-    if debug then Ertltree.print_file std_formatter lp;
+    if debug then Ertltree.print_file std_formatter p;
     if !interp_ertl then begin ignore (Ertlinterp.program p); exit 0 end;
-    let coloring = Graph.program lp in
-    Graph.print std_formatter coloring;
-    let p = Ltl.program coloring lp in
+    let p = Coloring.program p in
+    (*if debug then Coloring.print std_formatter p;*)
+    let p = Ltl.program p in
     if debug then Ltltree.print_file std_formatter p;
     if !interp_ltl then begin ignore (Ltlinterp.program p); exit 0 end;
     let p = Linearising.program p in
-    if (debug) then X86_64.print_program std_formatter p else X86_64.print_in_file "a.out" p;
+    if (debug) then X86_64.print_program std_formatter p else X86_64.print_in_file ((Filename.chop_suffix !ifile ".c") ^ ".s") p;
     ()
     (* ... *)
   with
