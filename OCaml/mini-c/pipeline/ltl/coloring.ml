@@ -98,7 +98,7 @@ let print_live_info fmt li =
     print_set li.defs print_set li.uses print_set li.ins print_set li.outs
 
 let print_graph_li fmt =
-    Ertltree.visit (fun l i -> let li = Label.M.find l !lg in fprintf fmt "  %a: %a -> %a\n" Label.print l Ertltree.print_instr i print_live_info li)
+    Ertltree.visit (fun l i -> printf "%s\n" (l :> string);let li = Label.M.find l !lg in fprintf fmt "  %a: %a -> %a\n" Label.print l Ertltree.print_instr i print_live_info li)
 
 (**
 Adds a preference edge (twice, to be undirected)
@@ -217,7 +217,7 @@ let color ig =
         	else (* Register found *)
         	    match c with
         	    | Ltltree.Reg register ->
-        	        printf "%s -> %s,%d\n" (s :> string) (register :> string) p;
+        	        (*printf "%s -> %s,%d\n" (s :> string) (register :> string) p;*)
         	        let colorability = Register.S.fold
                     begin fun r _colorability ->
                         if not (Register.is_hw r) then

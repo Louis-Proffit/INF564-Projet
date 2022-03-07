@@ -64,7 +64,6 @@ let () =
     if debug then Ertltree.print_file std_formatter p;
     if !interp_ertl then begin ignore (Ertlinterp.program p); exit 0 end;
     let p = Coloring.program p in
-    Coloring.print std_formatter p;
     (*if debug then Coloring.print std_formatter p;*)
     let p = Ltl.program p in
     if debug then Ltltree.print_file std_formatter p;

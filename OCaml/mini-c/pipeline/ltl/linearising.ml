@@ -40,7 +40,7 @@ and instr g l = function
       | Madd -> emit l (addq (operand op1) (operand op2)); lin g l1
       | Msub -> emit l (subq (operand op1) (operand op2)); lin g l1
       | Mmul -> emit l (imulq (operand op1) (operand op2)); lin g l1
-      | Mdiv -> emit l (idivq (operand op2)); lin g l1
+      | Mdiv -> emit (Label.fresh ()) cqto; emit l (idivq (operand op1)); lin g l1
       | Msete
       | Msetne
       | Msetl
@@ -55,6 +55,7 @@ and instr g l = function
           | Msetle -> emit (Label.fresh ()) (setle (reg r11b));
           | Msetg -> emit (Label.fresh ()) (setg (reg r11b));
           | Msetge -> emit (Label.fresh ()) (setge (reg r11b));
+          | _ -> assert false
           end;
         emit (Label.fresh ()) (movzbq (reg r11b) r11);
         emit (Label.fresh ()) (movq (reg r11) (operand op2));

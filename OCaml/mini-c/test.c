@@ -1,8 +1,11 @@
 
+int f(int x, int y, int z, int t) {
+  if (!x) return 10;
+  putchar(x);
+  return f(y, z, t, x);
+}
+
 int main() {
-  int x;
-  x = 10;
-  while((x = x-1) + 1) putchar('A' + x);
-  putchar(10);
+  putchar(f('A', 'B', 'C', 0));
   return 0;
 }
