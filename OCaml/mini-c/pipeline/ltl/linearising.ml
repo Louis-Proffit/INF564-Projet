@@ -28,7 +28,12 @@ and instr g l = function
   | Estore (r1, r2, i, l1) -> emit l (movq (reg (register64 r1)) (ind ~ofs:i (register64 r2))); lin g l1
   | Egoto l1 -> if (Hashtbl.mem labels l1) then (need_label l1;emit l (jmp (l1 :> string))) else (emit_wi l;lin g l1)
   | Ereturn -> emit l ret
-  | Emunop (muop, op, l1) -> assert false
+  | Emunop (muop, op, l1) ->
+    begin match muop with
+    | Maddi i -> emit l (addq (imm32 i) (operand op)); lin g l1
+    | Msetei i -> emit l (testq (imm32 i) (operand op)); lin g l1
+    | Msetnei i -> assert false
+    end
   | Embinop (mbop, op1, op2, l1) ->
       begin match mbop with
       | Mmov -> emit l (movq (operand op1) (operand op2)); lin g l1
@@ -36,13 +41,12 @@ and instr g l = function
       | Msub -> emit l (subq (operand op1) (operand op2)); lin g l1
       | Mmul -> emit l (imulq (operand op1) (operand op2)); lin g l1
       | Mdiv -> emit l (idivq (operand op2)); lin g l1
-      (*| Msete -> emit l (movq (operand op1) (operand op2)); lin g l1
-      | Msetne -> emit l (movq (operand op1) (operand op2)); lin g l1
-      | Msetl -> emit l (movq (operand op1) (operand op2)); lin g l1
-      | Msetle -> emit l (movq (operand op1) (operand op2)); lin g l1
-      | Msetg -> emit l (movq (operand op1) (operand op2)); lin g l1
-      | Msetge -> emit l (movq (operand op1) (operand op2)); lin g l1*)
-      | _ -> assert false
+      | Msete -> assert false
+      | Msetne -> assert false
+      | Msetl -> assert false
+      | Msetle -> assert false
+      | Msetg -> assert false
+      | Msetge -> assert false
       end
   | Emubranch (mub, op, l1, l2) ->
       begin match mub with
@@ -66,13 +70,17 @@ and instr g l = function
   | Embbranch (mbb, op1, op2, l1, l2) ->
     begin match mbb with
     | Mjl ->
-        let l3 = Label.fresh in
+        need_label l1;
+        emit l (cmpq (operand op1) (operand op2));
+        emit (Label.fresh ()) (jl (l1 :> string));
+        lin g l2;
+        lin g l1;
+    | Mjle ->
         need_label l1;
         emit l (cmpq (operand op1) (operand op2));
         emit (Label.fresh ()) (jle (l1 :> string));
         lin g l2;
         lin g l1;
-    | Mjle -> assert false
     end
   | Epush (op, l1) -> emit l (pushq (operand op)); lin g l1
   | Ecall (id, l1) -> emit l1 (call id); lin g l1
