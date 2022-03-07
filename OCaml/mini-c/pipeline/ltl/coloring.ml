@@ -91,6 +91,14 @@ let liveness lg (f:Ertltree.deffun) =
     Label.M.iter (fun l li -> ws := Label.S.add l !ws;()) !lg;
     killdal lg ws
 
+let print_set = Register.print_set
+
+let print_live_info fmt li =
+  fprintf fmt "d={%a}@ u={%a}@ i={%a}@ o={%a}"
+    print_set li.defs print_set li.uses print_set li.ins print_set li.outs
+
+let print_graph_li fmt =
+    Ertltree.visit (fun l i -> let li = Label.M.find l !lg in fprintf fmt "  %a: %a -> %a\n" Label.print l Ertltree.print_instr i print_live_info li)
 
 (**
 Adds a preference edge (twice, to be undirected)
@@ -104,7 +112,10 @@ let add_pref r1 r2 =
 (**
 Adds a interference edge (twice, to be undirected)
 *)
-let add_intf r1 r2 =
+let add_intf (r1:Register.t) (r2:Register.t) =
+    (*print_string (r1 :> string);
+    print_string " ";
+    print_endline (r2 :> string);*)
     let arc1 = try Register.M.find r1 !graph with Not_found -> (let arc1 = {prefs=Register.S.empty;intfs=Register.S.empty} in graph := Register.M.add r1 arc1 !graph;arc1) in
     arc1.intfs<-Register.S.add r2 arc1.intfs;
     let arc2 = try Register.M.find r2 !graph with Not_found -> (let arc2 = {prefs=Register.S.empty;intfs=Register.S.empty} in graph := Register.M.add r2 arc2 !graph;arc2) in
@@ -185,7 +196,13 @@ let color ig =
                 let has_pref_with_color, new_c = Register.S.fold
                     begin
                         fun r_pref (current,color_loc) ->
-                        if current then (current,color_loc) else begin try (true, Register.M.find r_pref coloring) with Not_found -> (false, color_loc) end
+                        if current then (current,color_loc) else
+                        begin
+                            let new_color = try Register.M.find r_pref coloring with Not_found -> color_loc in
+                            match new_color with
+                            | Ltltree.Reg reg_loc -> if (Register.S.mem reg_loc (Register.M.find r colorability)) then (true, new_color) else (false, new_color)
+                            | Ltltree.Spilled i -> (false, color_loc)
+                        end
                     end (Register.M.find r ig).prefs (false,Ltltree.Reg Register.tmp1) in
                 if (priority < 2 && has_pref_with_color) then (2, r, new_c) else
                 if (priority < 1) then begin try (1, r, Ltltree.Reg (Register.S.choose (Register.M.find r colorability))) with Not_found -> (priority,solution,c) end
@@ -200,6 +217,7 @@ let color ig =
         	else (* Register found *)
         	    match c with
         	    | Ltltree.Reg register ->
+        	        printf "%s -> %s,%d\n" (s :> string) (register :> string) p;
         	        let colorability = Register.S.fold
                     begin fun r _colorability ->
                         if not (Register.is_hw r) then
@@ -209,9 +227,9 @@ let color ig =
                     color_rec (Register.M.add s c coloring) colorability (Register.S.remove s todo) stack_count
                 | _ -> assert false (* The priority function doesn't return a spilled value *)
         in
-    let todo = Register.M.fold (fun r arc s -> Register.S.add r s) ig Register.S.empty in (* Registers to color *)
     let colorability = Register.M.fold (fun r arc cs -> Register.M.add r (Register.S.diff Register.allocatable arc.intfs) cs) ig Register.M.empty in
-    let coloring = Register.S.fold (fun r co -> if (Register.S.mem r Register.allocatable) then Register.M.add r (Ltltree.Reg r) co else co) todo (Register.M.empty) in
+    let todo = Register.M.fold (fun r arc s -> if not (Register.is_hw r) then Register.S.add r s else s) ig Register.S.empty in (* Registers to color *)
+    let coloring = Register.S.fold (fun r co -> if (Register.is_hw r) then Register.M.add r (Ltltree.Reg r) co else co) todo (Register.M.empty) in
     color_rec coloring colorability todo 0
 
 let print_graph ig =
@@ -224,9 +242,10 @@ let print_color fmt = function
   | Ltltree.Reg hr    -> fprintf fmt "%a" Register.print hr
   | Ltltree.Spilled n -> fprintf fmt "stack %d" n
 
-let print fmt cm =
-    Register.M.iter
-    (fun r cr -> printf "%a -> %a@\n" Register.print r print_color cr) cm
+let print fmt f =
+    List.iter (fun x -> print_graph_li fmt x.fun_body x.fun_entry) f.funs;
+    List.iter (fun x -> Register.M.iter
+                            (fun r cr -> printf "%a -> %a@\n" Register.print r print_color cr) x.fun_coloring) f.funs
 
 let program_fun (df:Ertltree.deffun) =
     lg := Label.M.empty;

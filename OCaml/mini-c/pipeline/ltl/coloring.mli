@@ -41,4 +41,4 @@ type file = {
 
 val program : Ertltree.file -> file
 
-val print : Format.formatter -> coloring -> unit
+val print : Format.formatter -> file -> unit

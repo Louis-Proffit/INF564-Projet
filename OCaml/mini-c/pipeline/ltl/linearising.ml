@@ -11,7 +11,7 @@ let need_label l = Hashtbl.add labels l ()
 
 let operand = function
   | Ltltree.Reg r -> reg (register64 r)
-  | _ -> assert false
+  | Ltltree.Spilled i -> ind ~ofs:(- (i + 1) * 8) rbp
 
 let rec lin g l =
   if not (Hashtbl.mem visited l) then begin
@@ -41,25 +41,37 @@ and instr g l = function
       | Msub -> emit l (subq (operand op1) (operand op2)); lin g l1
       | Mmul -> emit l (imulq (operand op1) (operand op2)); lin g l1
       | Mdiv -> emit l (idivq (operand op2)); lin g l1
-      | Msete -> assert false
-      | Msetne -> assert false
-      | Msetl -> assert false
-      | Msetle -> assert false
-      | Msetg -> assert false
-      | Msetge -> assert false
+      | Msete
+      | Msetne
+      | Msetl
+      | Msetle
+      | Msetg
+      | Msetge ->
+        emit l (cmpq (operand op1) (operand op2));
+          begin match mbop with
+          | Msete -> emit (Label.fresh ()) (sete (reg r11b));
+          | Msetne -> emit (Label.fresh ()) (setne (reg r11b));
+          | Msetl -> emit (Label.fresh ()) (setl (reg r11b));
+          | Msetle -> emit (Label.fresh ()) (setle (reg r11b));
+          | Msetg -> emit (Label.fresh ()) (setg (reg r11b));
+          | Msetge -> emit (Label.fresh ()) (setge (reg r11b));
+          end;
+        emit (Label.fresh ()) (movzbq (reg r11b) r11);
+        emit (Label.fresh ()) (movq (reg r11) (operand op2));
+        lin g l1
       end
   | Emubranch (mub, op, l1, l2) ->
       begin match mub with
       | Mjz ->
           let r = operand op in
-          emit l (cmpq r r);
+          emit l (testq r r);
           need_label l1;
           emit (Label.fresh ()) (je (l1 :> string));
           lin g l2;
           lin g l1;
       | Mjnz ->
           let r = operand op in
-          emit l (cmpq r r);
+          emit l (testq r r);
           need_label l1;
           emit (Label.fresh ()) (jne (l1 :> string));
           lin g l2;
