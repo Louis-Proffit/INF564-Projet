@@ -31,8 +31,15 @@ and instr g l = function
   | Emunop (muop, op, l1) ->
     begin match muop with
     | Maddi i -> emit l (addq (imm32 i) (operand op)); lin g l1
-    | Msetei i -> emit l (testq (imm32 i) (operand op)); lin g l1
-    | Msetnei i -> assert false
+    | Msetei i ->
+        emit l (cmpq (imm32 i) (operand op));
+        emit (Label.fresh ()) (sete (reg r11b));
+        emit (Label.fresh ()) (movzbq (reg r11b) r11);
+        emit (Label.fresh ()) (movq (reg r11) (operand op)); lin g l1
+    | Msetnei i ->
+        emit l (cmpq (imm32 i) (operand op));
+        emit (Label.fresh ()) (setne (reg r11b));
+        emit (Label.fresh ()) (movzbq (reg r11b) r11); lin g l1
     end
   | Embinop (mbop, op1, op2, l1) ->
       begin match mbop with

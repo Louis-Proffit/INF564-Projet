@@ -1,11 +1,12 @@
 
-int f(int x, int y, int z, int t) {
-  if (!x) return 10;
-  putchar(x);
-  return f(y, z, t, x);
-}
+int zero() { return 0; }
+int false() { return zero(); }
+int true() { return !zero(); }
 
 int main() {
-  putchar(f('A', 'B', 'C', 0));
+  // &&
+  putchar('A');
+  putchar('A' + true());
+  putchar(10);
   return 0;
 }
