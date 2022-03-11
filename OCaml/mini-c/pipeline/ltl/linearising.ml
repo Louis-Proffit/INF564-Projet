@@ -102,7 +102,18 @@ and instr g l = function
         lin g l2;
         lin g l1;
     end
-  | Epush (op, l1) -> emit l (pushq (operand op)); lin g l1
+  | Emcbranch (f, l1, l2) ->
+    need_label l1;
+    begin match f with
+        | Me -> emit l (je (l1 :> string)); lin g l2; lin g l1
+        | Mne -> emit l (jne (l1 :> string)); lin g l2; lin g l1
+        | Mg -> emit l (jg (l1 :> string)); lin g l2; lin g l1
+        | Mge -> emit l (jge (l1 :> string)); lin g l2; lin g l1
+        | Ml -> emit l (jl (l1 :> string)); lin g l2; lin g l1
+        | Mle -> emit l (jle (l1 :> string)); lin g l2; lin g l1
+    end
+  | Euflags (r,l1) -> emit l (testq (operand r) (operand r)); lin g l1
+  | Epush (r, l1) -> emit l (pushq (operand r)); lin g l1
   | Ecall (id, l1) -> emit l1 (call id); lin g l1
   | Epop (r,l1) -> emit l (popq (register64 r)); lin g l1
 

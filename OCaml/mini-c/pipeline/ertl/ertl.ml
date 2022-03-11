@@ -18,16 +18,21 @@ let map_instr il = function
     | Rtltree.Embinop (mn,r1,r2,l) -> add il (Embinop (mn,r1,r2,l))
     | Rtltree.Emubranch (mu,r,l1,l2) -> add il (Emubranch (mu,r,l1,l2))
     | Rtltree.Embbranch (mb,r1,r2,l1,l2) -> add il (Embbranch (mb,r1,r2,l1,l2))
+
+    | Rtltree.Emcbranch (f, l1, l2) -> add il (Emcbranch(f, l1, l2))
+    | Rtltree.Euflags (r,l) -> add il (Euflags (r,l))
+    | Rtltree.Ebflags (f, r1, r2, l) -> add il (Ebflags (f, r1, r2, l))
     | Rtltree.Ecall (r,i,rl,l) ->
     let count_on_stack = max ((List.length rl) - 6) 0 in
     let count_on_reg = (List.length rl) - count_on_stack in
-    let label_pop_args = Label.fresh () in
-    let stack_pointer_shift_reg = Register.fresh () in
     let stack_pointer_shift_label = Label.fresh () in
     let move_result_label = Label.fresh () in
     let call_label = Label.fresh () in
-    add label_pop_args (Embinop(Madd, stack_pointer_shift_reg, Register.rsp, l));
-    add stack_pointer_shift_label (Econst(Int32.of_int (0 + 8 * count_on_stack), stack_pointer_shift_reg, label_pop_args));
+    begin if count_on_stack > 0 then
+        add stack_pointer_shift_label (Emunop (Maddi (Int32.of_int (8 * count_on_stack)), Register.rsp, l))
+    else
+        add stack_pointer_shift_label (Egoto l)
+    end;
     add move_result_label (Embinop(Mmov, Register.result, r, stack_pointer_shift_label));
     add call_label (Ecall(i, count_on_reg, move_result_label));
     let rec mov_arg_stack regs label =

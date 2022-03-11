@@ -26,13 +26,15 @@ let rec expr e destr destl =
     let label2 = expr e1 adress_reg label1 in
     expr e2 destr label2
     | IS.Ebinop(Band, e1, e2) ->
-    let label_expr_2 = expr e2 destr destl in
-    let label_test = generate (Emubranch(Mjz, destr, destl, label_expr_2)) in
-    expr e1 destr label_test
+        let label_expr_2 = expr e2 destr destl in
+        let label_jmp = generate (Emcbranch(Me, destl, label_expr_2)) in
+        let label_flag = generate (Euflags(destr, label_jmp)) in
+    expr e1 destr label_flag
     | IS.Ebinop(Bor, e1, e2) ->
-    let label_expr_2 = expr e2 destr destl in
-    let label_test = generate (Emubranch(Mjnz, destr, destl, label_expr_2)) in
-    expr e1 destr label_test
+        let label_expr_2 = expr e2 destr destl in
+        let label_jmp = generate (Emcbranch(Mne, destl, label_expr_2)) in
+        let label_flag = generate (Euflags(destr, label_jmp)) in
+        expr e1 destr label_flag
     | IS.Ebinop(b, e1, e2) ->
     let reg = Register.fresh () in
     let label_add = generate (
@@ -67,7 +69,6 @@ let rec expr e destr destl =
         let label = generate (Embinop(Msub, expr_reg, destr, destl)) in
         let label1 = generate (Econst(0l,destr, label)) in
         expr e expr_reg label1
-        | Uderef -> assert false
         end
     end
 
@@ -77,23 +78,26 @@ and stmt s destl retr exitl =
     | IS.Sskip -> exitl
     | IS.Sreturn e -> expr e retr exitl
     | IS.Sifelse (e,s1,s2) ->
-    let expr_reg = Register.fresh () in
-    let label2 = stmt s2 destl retr exitl in
-    let label1 = stmt s1 destl retr exitl in
-    let label_comp = generate (Emubranch(Mjnz,expr_reg,label1, label2)) in
-    expr e expr_reg label_comp
+        let expr_reg = Register.fresh () in
+        let stmt_label_1 = stmt s1 destl retr exitl in
+        let stmt_label_2 = stmt s2 destl retr exitl in
+        let label_jmp = generate(Emcbranch(Me, stmt_label_2, stmt_label_1)) in
+        let label_flag = generate(Euflags(expr_reg, label_jmp)) in
+        expr e expr_reg label_flag
     | IS.Sif (e,s) ->
-    let expr_reg = Register.fresh () in
-    let stmt_label = stmt s destl retr exitl in
-    let label_comp = generate (Emubranch(Mjnz,expr_reg,stmt_label, destl)) in
-    expr e expr_reg label_comp
+        let expr_reg = Register.fresh () in
+        let stmt_label = stmt s destl retr exitl in
+        let label_jmp = generate(Emcbranch(Me, destl, stmt_label)) in
+        let label_flag = generate(Euflags(expr_reg, label_jmp)) in
+        expr e expr_reg label_flag
     | IS.Swhile (e,s) ->
-    let expr_reg = Register.fresh () in
-    let test_label = Label.fresh () in
-    let expr_label = expr e expr_reg test_label in
-    let stmt_label = stmt s expr_label retr exitl in
-    graph := Label.M.add test_label (Emubranch (Mjnz, expr_reg, stmt_label, destl)) !graph;
-    generate (Egoto expr_label)
+        let expr_reg = Register.fresh () in
+        let flag_label = Label.fresh () in
+        let expr_label = expr e expr_reg flag_label in
+        let stmt_label = stmt s expr_label retr exitl in
+        let jmp_label = generate (Emcbranch(Me, destl, stmt_label)) in
+        graph := Label.M.add flag_label (Euflags(expr_reg, jmp_label)) !graph;
+        generate (Egoto expr_label)
     | IS.Sblock b -> stmt_list b destl retr exitl
     | IS.Sexpr e -> expr e (Register.fresh ()) destl
     end

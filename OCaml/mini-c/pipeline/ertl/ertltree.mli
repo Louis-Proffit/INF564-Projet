@@ -20,6 +20,11 @@ type instr =
   | Embinop of mbinop * register * register * label
   | Emubranch of mubranch * register * label * label
   | Embbranch of mbbranch * register * register * label * label
+
+  | Emcbranch of flag * label * label (* Binary conditional branching *)
+  | Euflags of register * label (* Set the flags of the corresponding register *)
+  | Ebflags of flag * register * register * label (* Set the flags corresponding to two registers *)
+
   | Egoto of label
   | Ecall of ident * int * label
       (** l'entier est le nombre de paramètres passés dans des registres *)

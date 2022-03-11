@@ -20,6 +20,11 @@ type instr =
   | Embinop of mbinop * register * register * label
   | Emubranch of mubranch * register * label * label
   | Embbranch of mbbranch * register * register * label * label
+
+  | Emcbranch of flag * label * label (* Binary conditional branching *)
+  | Euflags of register * label (* Set the flags of the corresponding register *)
+  | Ebflags of flag * register * register * label (* Set the flags corresponding to two registers *)
+
   | Egoto of label
   | Ecall of ident * int * label
       (** l'entier est le nombre de paramètres passés dans des registres *)
@@ -94,6 +99,11 @@ let def_use = function
       [Register.rax; Register.rdx], [Register.rax; Register.rdx; rs]
   | Embinop (_,rs,rd,_) ->
       [rd], [rs; rd]
+
+  | Emcbranch (_,_,_) -> [], []
+  | Euflags (r,_) -> [], [r]
+  | Ebflags (_, r1, r2, _) -> [], [r1; r2]
+
   | Estore (r1,r2,_,_)
   | Embbranch (_,r1,r2,_,_) ->
       [], [r1; r2]
@@ -123,11 +133,14 @@ let succ = function
   | Ealloc_frame l
   | Edelete_frame l
   | Eget_param (_,_,l)
+  | Euflags (_,l)
+  | Ebflags (_,_,_,l)
   | Epush_param (_,l) ->
       [l]
   | Emubranch (_,_,l1,l2)
   | Embbranch (_,_,_,l1,l2) ->
       [l1; l2]
+  | Emcbranch (_, l1, l2) -> [l1; l2]
   | Ereturn ->
       []
 
@@ -156,6 +169,15 @@ let print_instr fmt = function
       fprintf fmt "%a %a %a  --> %a, %a"
 	print_mbbranch op Register.print r1 Register.print r2
         Label.print l1 Label.print l2
+  | Emcbranch (f, l1, l2) ->
+    fprintf fmt "jmp-flag(%a) --> %a %a "
+        Ops.print_flag f Label.print l1 Label.print l2
+  | Euflags (r,l) ->
+    fprintf fmt "set-flag(%a) --> %a"
+        Register.print r Label.print l
+  | Ebflags (f, r1, r2 ,l) ->
+      fprintf fmt "set-flag(%a) for %a %a --> %a"
+          Ops.print_flag f Register.print r1 Register.print r2 Label.print l
   | Egoto l ->
       fprintf fmt "goto %a" Label.print l
   | Ecall (x, n, l) ->

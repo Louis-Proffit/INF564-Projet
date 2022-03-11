@@ -147,8 +147,6 @@ expr_node:
     { Eunop (Uminus, $2) }
 | BANG expr
     { Eunop (Unot, $2) }
-| STAR expr
-    { Eunop (Uderef, $2) }
 | INTEGER
     { Econst $1 }
 | id = ident LPAR el = separated_list(COMMA, expr) RPAR

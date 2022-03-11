@@ -19,6 +19,11 @@ type instr =
     (** attention au sens : [op r1 r2] représente [r2 <- r2 op r1] *)
   | Emubranch of mubranch * register * label * label
   | Embbranch of mbbranch * register * register * label * label
+
+  | Emcbranch of flag * label * label (* Binary conditional branching *)
+  | Euflags of register * label (* Set the flags of the corresponding register *)
+  | Ebflags of flag * register * register * label (* Set the flags corresponding to two registers *)
+
     (** attention au sens : [br r1 r2] représente [r2 br r1] *)
   | Ecall of register * string * register list * label
   | Egoto of label
@@ -74,6 +79,15 @@ let print_instr fmt = function
       fprintf fmt "%a %a %a  --> %a, %a"
 	print_mbbranch op
         Register.print r1 Register.print r2 Label.print l1 Label.print l2
+  | Emcbranch (f, l1, l2) ->
+    fprintf fmt "jmp-flag(%a) --> %a %a "
+        Ops.print_flag f Label.print l1 Label.print l2
+  | Euflags (r,l) ->
+    fprintf fmt "set-flag(%a) --> %a"
+        Register.print r Label.print l
+  | Ebflags (f, r1, r2 ,l) ->
+      fprintf fmt "set-flag(%a) for %a %a --> %a"
+          Ops.print_flag f Register.print r1 Register.print r2 Label.print l
   | Ecall (r, x, rl, l) ->
       fprintf fmt "%a <- call %s(@[%a@])  --> %a"
 	Register.print r x (print_list comma Register.print) rl Label.print l
@@ -93,11 +107,14 @@ let print_graph fmt (g: cfg) (entry: label) (exit: label) =
 	| Estore (_,_,_,l)
 	| Emunop (_,_,l)
 	| Embinop (_,_,_,l)
+	| Euflags (_,l)
+	| Ebflags (_,_,_,l)
 	| Ecall (_,_,_,l)
 	| Egoto l ->
 	    visit l
 	| Emubranch (_,_,l1,l2)
-	| Embbranch (_,_,_,l1,l2) ->
+	| Embbranch (_,_,_,l1,l2)
+	| Emcbranch (_,l1,l2) ->
 	    visit l1; visit l2
     end
   in

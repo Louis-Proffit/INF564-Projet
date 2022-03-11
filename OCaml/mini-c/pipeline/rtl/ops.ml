@@ -33,6 +33,15 @@ type mbbranch =
   | Mjl
   | Mjle
 
+
+type flag =
+    | Me
+    | Mne
+    | Mg
+    | Mge
+    | Ml
+    | Mle
+
 (** {2 Fonctions d'impression} *)
 
 open Format
@@ -65,4 +74,10 @@ let print_mbbranch fmt = function
   | Mjl -> fprintf fmt "jl"
   | Mjle -> fprintf fmt "jle"
 
-
+let print_flag fmt = function
+  | Me -> fprintf fmt "fe"
+  | Mne -> fprintf fmt "fne"
+  | Mg -> fprintf fmt "fg"
+  | Mge -> fprintf fmt "fge"
+  | Ml -> fprintf fmt "fl"
+  | Mle -> fprintf fmt "fle"

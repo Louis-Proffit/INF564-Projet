@@ -64,6 +64,12 @@ and type_expr env = function
       }
       with Not_found -> raise (Error ("the variable " ^ x.id ^ " is not assigned"))
   end
+  | Ptree.Eright (Ptree.Lderef e) ->
+    let texpr = type_expr env e.expr_node in
+    begin match texpr.expr_typ with
+        | Tpointer t -> {expr_node=Eaccess_memory(texpr);expr_typ=t}
+        | _ -> raise (Error ("Cannot dereference a non pointer type"))
+    end
   | Ptree.Eright (Ptree.Larrow (e, x)) ->
     let texpr = type_expr env e.expr_node in
     begin match texpr.expr_typ with
@@ -84,6 +90,16 @@ and type_expr env = function
        else raise (Error ("Assigning " ^ x.id ^ " of type "^(string_of_type left_typ)^" with type "^(string_of_type texpr.expr_typ)))
      with Not_found -> raise (Error ("the variable " ^ x.id ^ " is not declared (assignement)"))
      )
+  | Ptree.Eassign (Ptree.Lderef e1, e2) ->
+    let texpr1 = type_expr env e1.expr_node in
+    let texpr2 = type_expr env e2.expr_node in
+    begin match texpr1.expr_typ with
+        | Tpointer t ->
+            if type_equiv t texpr2.expr_typ
+            then {expr_node = Eassign_memory (texpr1, texpr2); expr_typ=t }
+            else raise (Error "Incompatible types for dereference assigning")
+        | _ -> raise (Error "Can't dereference a non pointer type")
+    end
   | Ptree.Eassign (Ptree.Larrow (e1, x), e2) ->
     let typed_e1 = type_expr env e1.expr_node and typed_e2 = type_expr env e2.expr_node in
     begin match typed_e1.expr_typ with
@@ -102,12 +118,6 @@ and type_expr env = function
       | _ -> raise (Error "you are trying using arrow operator to assign a non struct pointer expression")
     end
   | Ptree.Eunop (Unot,e) -> let expr = type_expr env e.expr_node in {expr_node=Eunop(Unot, expr);expr_typ=Tint}
-  | Ptree.Eunop (Uderef,e) ->
-      let expr = type_expr env e.expr_node in
-      begin match expr.expr_typ with
-          | Tpointer t -> {expr_node=Eunop(Uderef, expr);expr_typ=t}
-          | _ -> raise (Error ("you are trying to dereference an expression that is not a pointer"))
-      end
   | Ptree.Eunop (Uminus,e) -> let expr = type_expr env e.expr_node in
     if (type_equiv expr.expr_typ Tint)
     then {expr_node=Eunop(Uminus, expr);expr_typ=Tint}
@@ -116,26 +126,26 @@ and type_expr env = function
     let ne1 = type_expr env e1.expr_node in
     let ne2 = type_expr env e2.expr_node in
     begin match b with
-    | Beq
-    | Bneq
-    | Blt
-    | Ble
-    | Bgt
-    | Bge->
-      if (type_equiv ne1.expr_typ ne2.expr_typ)
-      then {expr_node=Ebinop(b, ne1, ne2);expr_typ=Tint}
-      else raise (Error "Incompatible types for binop")
-     | Badd
-     | Bsub
-     | Bmul
-     | Bdiv ->
-      if ((type_equiv ne1.expr_typ Tint) && (type_equiv ne2.expr_typ Tint))
-      then {expr_node=Ebinop(b, ne1, ne2);expr_typ=Tint}
-      else raise (Error "Incompatible types for binop")
-     | Band
-     | Bor ->
-     {expr_node=Ebinop(b, ne1, ne2);expr_typ=Tint}
-    end
+        | Beq
+        | Bneq
+        | Blt
+        | Ble
+        | Bgt
+        | Bge->
+          if (type_equiv ne1.expr_typ ne2.expr_typ)
+          then {expr_node=Ebinop(b, ne1, ne2);expr_typ=Tint}
+          else raise (Error "Incompatible types for binop")
+         | Badd
+         | Bsub
+         | Bmul
+         | Bdiv ->
+          if ((type_equiv ne1.expr_typ Tint) && (type_equiv ne2.expr_typ Tint))
+          then {expr_node=Ebinop(b, ne1, ne2);expr_typ=Tint}
+          else raise (Error "Incompatible types for binop")
+         | Band
+         | Bor ->
+         {expr_node=Ebinop(b, ne1, ne2);expr_typ=Tint}
+      end
   | Ptree.Ecall (i,el) ->
   (try (let mfun = Hashtbl.find env.funs i.id in
     (try let expr_list = List.map2 (
@@ -147,7 +157,6 @@ and type_expr env = function
    with Invalid_argument e -> raise (Error "wrong number of arguments")))
    with Not_found -> raise (Error ("function "^i.id^" not defined")))
   | Ptree.Esizeof typ -> {expr_node= Esizeof (type_type env typ); expr_typ=Tint} (* What if the structure is not defined *)
-  | _         -> assert false
 
 
 and type_stmt env (s: Ptree.stmt) =

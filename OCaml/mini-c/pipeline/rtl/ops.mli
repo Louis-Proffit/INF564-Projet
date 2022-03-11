@@ -33,6 +33,14 @@ type mbbranch =
   | Mjl
   | Mjle
 
+type flag =
+    | Me
+    | Mne
+    | Mg
+    | Mge
+    | Ml
+    | Mle
+
 (** {2 Fonctions d'impression} *)
 
 val print_munop: Format.formatter -> munop -> unit
@@ -42,4 +50,6 @@ val print_mbinop: Format.formatter -> mbinop -> unit
 val print_mubranch: Format.formatter -> mubranch -> unit
 
 val print_mbbranch: Format.formatter -> mbbranch -> unit
+
+val print_flag: Format.formatter -> flag -> unit
 

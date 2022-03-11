@@ -11,7 +11,7 @@ type typ =
   | Tpointer of typ
 
 type unop =
-  | Unot | Uminus | Uderef
+  | Unot | Uminus
 
 type binop =
   | Beq | Bneq | Blt | Ble | Bgt | Bge | Badd | Bsub | Bmul | Bdiv
@@ -25,7 +25,6 @@ type expr =
 and expr_node =
   | Econst of int32
   | Eright of lvalue
-  | Ederef of expr
   | Eassign of lvalue * expr
   | Eunop of unop * expr
   | Ebinop of binop * expr * expr
@@ -39,6 +38,7 @@ and expr_node =
 and lvalue =
   | Lident of ident
   | Larrow of expr * ident
+  | Lderef of expr
 
 type ident_star = ident * int (* (int,3) stands for ***int *)
 

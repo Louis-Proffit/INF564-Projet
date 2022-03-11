@@ -19,6 +19,12 @@ type instr =
     (** attention au sens : [op r1 r2] représente [r2 <- r2 op r1] *)
   | Emubranch of mubranch * register * label * label
   | Embbranch of mbbranch * register * register * label * label
+
+  | Emcbranch of flag * label * label (* Binary conditional branching *)
+  | Euflags of register * label (* Set the flags of the corresponding register *)
+  | Ebflags of flag * register * register * label (* Set the flags corresponding to two registers *)
+
+
     (** attention au sens : [br r1 r2] représente [r2 br r1] *)
   | Ecall of register * string * register list * label
   | Egoto of label

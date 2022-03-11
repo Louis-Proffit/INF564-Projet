@@ -44,6 +44,8 @@ and expr_node =
   | Eaccess_field of expr * field
   | Eassign_local of ident * expr * var_typ
   | Eassign_field of expr * field * expr
+  | Eassign_memory of expr * expr
+  | Eaccess_memory of expr
   | Eunop of unop * expr
   | Ebinop of binop * expr * expr
   | Ecall of ident * expr list

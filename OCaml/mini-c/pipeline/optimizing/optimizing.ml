@@ -56,6 +56,8 @@ and map_expr (e:Ttree.expr) =
       | Ttree.Eaccess_field (e,f) -> Eaccess_shift(map_expr e, 8 * f.shift)
       | Ttree.Eassign_local (i,e,vt) -> Eassign_local(full_ident i vt, map_expr e)
       | Ttree.Eassign_field (e1,f,e2) -> Eassign_shift(map_expr e1, 8 * f.shift, map_expr e2)
+      | Ttree.Eaccess_memory e -> Eaccess_shift(map_expr e, 0)
+      | Ttree.Eassign_memory (e1,e2) -> Eassign_shift(map_expr e1, 0, map_expr e2)
       | Ttree.Eunop (u,e) -> Eunop(u, map_expr e)
       | Ttree.Ebinop (Ptree.Badd,e1,e2) -> Ebinop(Ptree.Badd, map_expr e1, map_expr e2)
       | Ttree.Ebinop (b,e1,e2) -> Ebinop(b, map_expr e1, map_expr e2)
@@ -83,7 +85,6 @@ and opt_expr = function
             | Ebinop (Bge, e1, e2) -> opt_expr (Ebinop(Blt, e1, e2))
             | _ -> Eunop(u, opt_expr e)
         end
-        | Uderef -> assert false
     end
     | Ebinop (b, Econst n1, Econst n2) ->
         begin match b with
