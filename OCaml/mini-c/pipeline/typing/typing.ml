@@ -21,7 +21,7 @@ let rec string_of_type = function
 
 let type_error (l: Ptree.loc) =
   let (a, b) = l in
-  "Typing error at line " ^ string_of_int a.pos_lnum ^ ", column " ^ string_of_int a.pos_cnum ^ " in file " ^ a.pos_fname ^ "\n"
+  "line " ^ string_of_int a.pos_lnum ^ ", column " ^ string_of_int a.pos_cnum ^ "\n"
 
 let rec type_equiv t s =
   match (t, s) with
@@ -55,11 +55,13 @@ and type_expr env (exp: Ptree.expr) =
     expr_node = Econst 0l;
     expr_typ = Ttypenull;
   }
+
   | Ptree.Econst n  ->
   {
     expr_node = Econst n;
     expr_typ = Tint;
    }
+
   | Ptree.Eright (Ptree.Lident x) ->
   begin
       try let (typ, var_typ) = Hashtbl.find env.vars x.id in
@@ -69,12 +71,14 @@ and type_expr env (exp: Ptree.expr) =
       }
       with Not_found -> raise (Error (type_error exp.expr_loc ^ "The variable " ^ x.id ^ " is not assigned"))
   end
+
   | Ptree.Eright (Ptree.Lderef e) ->
     let texpr = type_expr env e in
     begin match texpr.expr_typ with
         | Tpointer t -> {expr_node=Eaccess_memory(texpr);expr_typ=t}
         | _ -> raise (Error (type_error exp.expr_loc ^ "Cannot dereference a non pointer type"))
     end
+
   | Ptree.Eright (Ptree.Larrow (e, x)) ->
     let texpr = type_expr env e in
     begin match texpr.expr_typ with
@@ -87,6 +91,7 @@ and type_expr env (exp: Ptree.expr) =
           end
       | _            -> raise (Error (type_error exp.expr_loc ^ "You are using arrow operator on a non structure pointer expression"))
     end
+
   | Ptree.Eassign (Ptree.Lident x, e) ->
     let texpr = type_expr env e in
     (try let (left_typ, arg_typ) = Hashtbl.find env.vars x.id in
@@ -95,6 +100,7 @@ and type_expr env (exp: Ptree.expr) =
        else raise (Error (type_error exp.expr_loc ^ "Assigning " ^ x.id ^ " of type "^(string_of_type left_typ)^" with type "^(string_of_type texpr.expr_typ)))
      with Not_found -> raise (Error (type_error exp.expr_loc ^ "The variable " ^ x.id ^ " is not declared (assignement)"))
      )
+
   | Ptree.Eassign (Ptree.Lderef e1, e2) ->
     let texpr1 = type_expr env e1 in
     let texpr2 = type_expr env e2 in
@@ -105,6 +111,7 @@ and type_expr env (exp: Ptree.expr) =
             else raise (Error (type_error exp.expr_loc ^ "Incompatible types for dereference assigning"))
         | _ -> raise (Error (type_error exp.expr_loc ^ "Can't dereference a non pointer type"))
     end
+
   | Ptree.Eassign (Ptree.Larrow (e1, x), e2) ->
     let typed_e1 = type_expr env e1 and typed_e2 = type_expr env e2 in
     begin match typed_e1.expr_typ with
@@ -122,12 +129,14 @@ and type_expr env (exp: Ptree.expr) =
       end
       | _ -> raise (Error (type_error exp.expr_loc ^ "You are trying to use arrow operator to assign a non struct pointer expression"))
     end
+
   | Ptree.Eunop (Unot,e) -> let expr = type_expr env e in {expr_node=Eunop(Unot, expr);expr_typ=Tint}
   | Ptree.Eunop (Uminus,e) -> let expr = type_expr env e in
     if (type_equiv expr.expr_typ Tint)
     then {expr_node=Eunop(Uminus, expr);expr_typ=Tint}
     else raise (Error (type_error exp.expr_loc ^ "Negation of a non integer variable is not defined"))
-    | Ptree.Ebinop (b,e1,e2) ->
+
+  | Ptree.Ebinop (b,e1,e2) ->
     let ne1 = type_expr env e1 in
     let ne2 = type_expr env e2 in
     begin match b with
@@ -151,6 +160,7 @@ and type_expr env (exp: Ptree.expr) =
          | Bor ->
          {expr_node=Ebinop(b, ne1, ne2);expr_typ=Tint}
       end
+
   | Ptree.Ecall (i,el) ->
   (try (let mfun = Hashtbl.find env.funs i.id in
     (try let expr_list = List.map2 (
@@ -161,6 +171,7 @@ and type_expr env (exp: Ptree.expr) =
     {expr_node=Ecall(i.id, expr_list);expr_typ=mfun.fun_typ}
    with Invalid_argument e -> raise (Error (type_error exp.expr_loc ^ "Wrong number of arguments for calling " ^ mfun.fun_name))))
    with Not_found -> raise (Error (type_error exp.expr_loc ^ "The function "^i.id^" is not defined")))
+
   | Ptree.Esizeof typ -> {expr_node= Esizeof (type_type env exp.expr_loc typ); expr_typ=Tint} (* What if the structure is not defined *)
 
 
@@ -263,8 +274,8 @@ let program (p: Ptree.file) =
       };
    let funs = aux env p in
    (try let main_fun = Hashtbl.find env.funs "main" in
-   if ((List.length main_fun.fun_formals != 0) || not(type_equiv main_fun.fun_typ Tint)) then raise (Error "Typing error: incorrect main function")
-   with Not_found -> raise (Error "Typing error: main function missing"));
+      if ((List.length main_fun.fun_formals != 0) || not(type_equiv main_fun.fun_typ Tint)) then raise (Error "incorrect main function")
+   with Not_found -> raise (Error "main function missing"));
    {
      funs = funs;
    }
