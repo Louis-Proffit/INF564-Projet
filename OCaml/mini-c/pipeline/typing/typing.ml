@@ -1,5 +1,6 @@
 open Format
 open Ttree
+open Char
 
 (* utiliser cette exception pour signaler une erreur de typage *)
 exception Error of string
@@ -21,7 +22,7 @@ let rec string_of_type = function
 
 let type_error (l: Ptree.loc) =
   let (a, b) = l in
-  "line " ^ string_of_int a.pos_lnum ^ ", column " ^ string_of_int a.pos_cnum ^ "\n"
+  "File " ^ escaped '"' ^ a.pos_fname ^ escaped '"' ^ ", line " ^ string_of_int a.pos_lnum ^ ", characters " ^ string_of_int (a.pos_cnum - a.pos_bol) ^ escaped '-' ^ string_of_int (b.pos_cnum - b.pos_bol) ^ "\n"
 
 let rec type_equiv t s =
   match (t, s) with
