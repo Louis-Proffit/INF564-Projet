@@ -19,32 +19,37 @@ let rec string_of_type = function
   | Tvoidstar  -> "void*"
   | Ttypenull  -> "typenull"
 
+let type_error (l: Ptree.loc) =
+  let (a, b) = l in
+  "Typing error at line " ^ string_of_int a.pos_lnum ^ ", column " ^ string_of_int a.pos_cnum ^ " in file " ^ a.pos_fname ^ "\n"
+
 let rec type_equiv t s =
   match (t, s) with
-    | (Tstruct s1, Tstruct s2) -> String.equal s1.str_name s2.str_name
-    | (Tpointer t1, Tpointer t2) -> type_equiv t1 t2
-    | (a, b) when b = a       -> true
-    | (Ttypenull, Tint)       -> true
-    | (Tint, Ttypenull)       -> true
-    | (Ttypenull, Tpointer _) -> true
-    | (Tpointer _, Ttypenull) -> true
-    | (Tvoidstar, Tpointer _) -> true
-    | (Tpointer _, Tvoidstar) -> true
-    | _                       -> false
+  | (Tstruct s1, Tstruct s2)   -> String.equal s1.str_name s2.str_name
+  | (Tpointer t1, Tpointer t2) -> type_equiv t1 t2
+  | (a, b) when b = a          -> true
+  | (Ttypenull, Tint)          -> true
+  | (Tint, Ttypenull)          -> true
+  | (Ttypenull, Tpointer _)    -> true
+  | (Tpointer _, Ttypenull)    -> true
+  | (Tvoidstar, Tpointer _)    -> true
+  | (Tpointer _, Tvoidstar)    -> true
+  | _                          -> false
 
-let rec type_type env = function
-    | Ptree.Tint -> Tint
-    | Ptree.Tstruct i ->
-        begin try Tstruct (Hashtbl.find env.structs i.id)
-        with Not_found -> raise (Error ("Structure "^i.id^" not defined"))
-        end
-    | Ptree.Tpointer t -> Tpointer (type_type env t)
+let rec type_type env l = function
+  | Ptree.Tint -> Tint
+  | Ptree.Tstruct i ->
+    begin try Tstruct (Hashtbl.find env.structs i.id)
+      with Not_found -> raise (Error (type_error l ^ "Structure "^i.id^" not defined"))
+    end
+  | Ptree.Tpointer t -> Tpointer (type_type env l t)
 
 and type_ident_star t = function
     | (i,0) -> t
     | (i,n) -> Ptree.Tpointer (type_ident_star t (i, n - 1))
 
-and type_expr env = function
+and type_expr env (exp: Ptree.expr) =
+  match exp.expr_node with
   | Ptree.Econst 0l ->
   {
     expr_node = Econst 0l;
@@ -62,46 +67,46 @@ and type_expr env = function
           expr_node = Eaccess_local(x.id,var_typ);
           expr_typ = typ;
       }
-      with Not_found -> raise (Error ("the variable " ^ x.id ^ " is not assigned"))
+      with Not_found -> raise (Error (type_error exp.expr_loc ^ "The variable " ^ x.id ^ " is not assigned"))
   end
   | Ptree.Eright (Ptree.Lderef e) ->
-    let texpr = type_expr env e.expr_node in
+    let texpr = type_expr env e in
     begin match texpr.expr_typ with
         | Tpointer t -> {expr_node=Eaccess_memory(texpr);expr_typ=t}
-        | _ -> raise (Error ("Cannot dereference a non pointer type"))
+        | _ -> raise (Error (type_error exp.expr_loc ^ "Cannot dereference a non pointer type"))
     end
   | Ptree.Eright (Ptree.Larrow (e, x)) ->
-    let texpr = type_expr env e.expr_node in
+    let texpr = type_expr env e in
     begin match texpr.expr_typ with
       | Tpointer (Tstruct str) ->
           begin try let f = Hashtbl.find str.str_fields x.id in
           {
             expr_node = Eaccess_field (texpr, f);
             expr_typ = f.field_typ
-          } with Not_found -> raise (Error ("field "^x.id^" doesn't exist"))
+          } with Not_found -> raise (Error (type_error exp.expr_loc ^ "Field "^x.id^" of struct "^str.str_name^" doesn't exist"))
           end
-      | _            -> raise (Error "you are using arrow operator on a non structure pointer expression")
+      | _            -> raise (Error (type_error exp.expr_loc ^ "You are using arrow operator on a non structure pointer expression"))
     end
   | Ptree.Eassign (Ptree.Lident x, e) ->
-    let texpr = type_expr env e.expr_node in
+    let texpr = type_expr env e in
     (try let (left_typ, arg_typ) = Hashtbl.find env.vars x.id in
        if type_equiv left_typ texpr.expr_typ
        then {expr_node = Eassign_local (x.id, texpr, arg_typ); expr_typ = left_typ}
-       else raise (Error ("Assigning " ^ x.id ^ " of type "^(string_of_type left_typ)^" with type "^(string_of_type texpr.expr_typ)))
-     with Not_found -> raise (Error ("the variable " ^ x.id ^ " is not declared (assignement)"))
+       else raise (Error (type_error exp.expr_loc ^ "Assigning " ^ x.id ^ " of type "^(string_of_type left_typ)^" with type "^(string_of_type texpr.expr_typ)))
+     with Not_found -> raise (Error (type_error exp.expr_loc ^ "The variable " ^ x.id ^ " is not declared (assignement)"))
      )
   | Ptree.Eassign (Ptree.Lderef e1, e2) ->
-    let texpr1 = type_expr env e1.expr_node in
-    let texpr2 = type_expr env e2.expr_node in
+    let texpr1 = type_expr env e1 in
+    let texpr2 = type_expr env e2 in
     begin match texpr1.expr_typ with
         | Tpointer t ->
             if type_equiv t texpr2.expr_typ
             then {expr_node = Eassign_memory (texpr1, texpr2); expr_typ=t }
-            else raise (Error "Incompatible types for dereference assigning")
-        | _ -> raise (Error "Can't dereference a non pointer type")
+            else raise (Error (type_error exp.expr_loc ^ "Incompatible types for dereference assigning"))
+        | _ -> raise (Error (type_error exp.expr_loc ^ "Can't dereference a non pointer type"))
     end
   | Ptree.Eassign (Ptree.Larrow (e1, x), e2) ->
-    let typed_e1 = type_expr env e1.expr_node and typed_e2 = type_expr env e2.expr_node in
+    let typed_e1 = type_expr env e1 and typed_e2 = type_expr env e2 in
     begin match typed_e1.expr_typ with
       | Tpointer (Tstruct str) ->
       begin
@@ -112,19 +117,19 @@ and type_expr env = function
             expr_node = Eassign_field (typed_e1, field, typed_e2);
             expr_typ = field.field_typ;
         }
-        else raise (Error ("Assigning "^x.id^" of type "^(string_of_type field.field_typ)^" with type "^(string_of_type typed_e2.expr_typ)))
-        with Not_found -> raise (Error ("accessing undefined field "^x.id^" for struct "^str.str_name))
+        else raise (Error (type_error exp.expr_loc ^ "Assigning "^x.id^" of type "^(string_of_type field.field_typ)^" with type "^(string_of_type typed_e2.expr_typ)))
+        with Not_found -> raise (Error (type_error exp.expr_loc ^ "Accessing undefined field "^x.id^" of struct "^str.str_name))
       end
-      | _ -> raise (Error "you are trying using arrow operator to assign a non struct pointer expression")
+      | _ -> raise (Error (type_error exp.expr_loc ^ "You are trying to use arrow operator to assign a non struct pointer expression"))
     end
-  | Ptree.Eunop (Unot,e) -> let expr = type_expr env e.expr_node in {expr_node=Eunop(Unot, expr);expr_typ=Tint}
-  | Ptree.Eunop (Uminus,e) -> let expr = type_expr env e.expr_node in
+  | Ptree.Eunop (Unot,e) -> let expr = type_expr env e in {expr_node=Eunop(Unot, expr);expr_typ=Tint}
+  | Ptree.Eunop (Uminus,e) -> let expr = type_expr env e in
     if (type_equiv expr.expr_typ Tint)
     then {expr_node=Eunop(Uminus, expr);expr_typ=Tint}
-    else raise (Error "Negation of a non integer variable not defined")
+    else raise (Error (type_error exp.expr_loc ^ "Negation of a non integer variable is not defined"))
     | Ptree.Ebinop (b,e1,e2) ->
-    let ne1 = type_expr env e1.expr_node in
-    let ne2 = type_expr env e2.expr_node in
+    let ne1 = type_expr env e1 in
+    let ne2 = type_expr env e2 in
     begin match b with
         | Beq
         | Bneq
@@ -134,14 +139,14 @@ and type_expr env = function
         | Bge->
           if (type_equiv ne1.expr_typ ne2.expr_typ)
           then {expr_node=Ebinop(b, ne1, ne2);expr_typ=Tint}
-          else raise (Error "Incompatible types for binop")
+          else raise (Error (type_error exp.expr_loc ^ "Incompatible types for binop"))
          | Badd
          | Bsub
          | Bmul
          | Bdiv ->
           if ((type_equiv ne1.expr_typ Tint) && (type_equiv ne2.expr_typ Tint))
           then {expr_node=Ebinop(b, ne1, ne2);expr_typ=Tint}
-          else raise (Error "Incompatible types for binop")
+          else raise (Error (type_error exp.expr_loc ^ "Incompatible types for binop"))
          | Band
          | Bor ->
          {expr_node=Ebinop(b, ne1, ne2);expr_typ=Tint}
@@ -149,26 +154,26 @@ and type_expr env = function
   | Ptree.Ecall (i,el) ->
   (try (let mfun = Hashtbl.find env.funs i.id in
     (try let expr_list = List.map2 (
-        fun (expr:Ptree.expr) (t,i,vt) -> let mexpr = type_expr env expr.expr_node in
+        fun (expr:Ptree.expr) (t,i,vt) -> let mexpr = type_expr env expr in
         if (type_equiv mexpr.expr_typ t)
-        then mexpr else raise (Error "non matching types")
+        then mexpr else raise (Error (type_error exp.expr_loc ^ " Non matching types in function call"))
        ) el mfun.fun_formals in
     {expr_node=Ecall(i.id, expr_list);expr_typ=mfun.fun_typ}
-   with Invalid_argument e -> raise (Error "wrong number of arguments")))
-   with Not_found -> raise (Error ("function "^i.id^" not defined")))
-  | Ptree.Esizeof typ -> {expr_node= Esizeof (type_type env typ); expr_typ=Tint} (* What if the structure is not defined *)
+   with Invalid_argument e -> raise (Error (type_error exp.expr_loc ^ "Wrong number of arguments for calling " ^ mfun.fun_name))))
+   with Not_found -> raise (Error (type_error exp.expr_loc ^ "The function "^i.id^" is not defined")))
+  | Ptree.Esizeof typ -> {expr_node= Esizeof (type_type env exp.expr_loc typ); expr_typ=Tint} (* What if the structure is not defined *)
 
 
 and type_stmt env (s: Ptree.stmt) =
   match s.stmt_node with
   | Ptree.Sskip           -> Sskip
-  | Ptree.Sexpr e         -> Sexpr (type_expr env e.expr_node)
+  | Ptree.Sexpr e         -> Sexpr (type_expr env e)
   | Ptree.Sblock (dl, sl) -> Sblock(type_block env (dl,sl))
   | Ptree.Sreturn e       ->
-    let expr = type_expr env e.expr_node in
-    if (type_equiv (expr.expr_typ) (env.returnType)) then Sreturn(expr) else raise (Error("Wrong return type"))
-  | Ptree.Sif (e,s1,s2) -> Sif(type_expr env e.expr_node, type_stmt env s1, type_stmt env s2)
-  | Ptree.Swhile (e,s) -> Swhile(type_expr env e.expr_node, type_stmt env s)
+    let expr = type_expr env e in
+    if (type_equiv (expr.expr_typ) (env.returnType)) then Sreturn(expr) else raise (Error(type_error s.stmt_loc ^ "Wrong return type"))
+  | Ptree.Sif (e,s1,s2) -> Sif(type_expr env e, type_stmt env s1, type_stmt env s2)
+  | Ptree.Swhile (e,s) -> Swhile(type_expr env e, type_stmt env s)
 
 
 and type_block env ((dl, sl):(Ptree.decl_var_local list * Ptree.stmt list)) =
@@ -178,8 +183,8 @@ and type_block env ((dl, sl):(Ptree.decl_var_local list * Ptree.stmt list)) =
     List.iter
         (fun ((t,(i,n)):(Ptree.typ*Ptree.ident_star)) ->
             if (Hashtbl.mem new_vars i.id)
-            then raise (Error ("variable "^i.id^" defined twice in the block"))
-            else Hashtbl.add new_vars i.id (type_type env (type_ident_star t (i,n)), Ilocal block_index)
+            then raise (Error (type_error i.id_loc ^ "The variable "^i.id^" is defined twice in the block"))
+            else Hashtbl.add new_vars i.id (type_type env i.id_loc (type_ident_star t (i,n)), Ilocal block_index)
         )
     dl;
     Hashtbl.iter (Hashtbl.add env.vars) new_vars;
@@ -193,17 +198,17 @@ let program (p: Ptree.file) =
     | [] -> []
     | (Ptree.Dstruct (id, l)) :: q ->
         let i = ref 0 in
-        if (Hashtbl.mem env.structs id.id) then raise (Error ("struct " ^ id.id ^ " was already declared"));
+        if (Hashtbl.mem env.structs id.id) then raise (Error ("Struct " ^ id.id ^ " was already declared"));
         Hashtbl.add env.structs id.id {str_name = id.id ; str_fields = Hashtbl.create 5};
         let rec add_fields str_id env = function
             | [] -> ()
             | ((t,(id,n)):(Ptree.typ * (Ptree.ident * int))) :: q ->
                 let str = try (Hashtbl.find env.structs str_id).str_fields with Not_found -> raise (Error "wtf") in
-                if (Hashtbl.mem str id.id) then raise (Error ("Struct "^str_id^" contains two fields named "^id.id))
+                if (Hashtbl.mem str id.id) then raise (Error (type_error id.id_loc ^ "Struct "^str_id^" contains two fields named "^id.id))
                 else (Hashtbl.add str id.id)
                 {
                     field_name = id.id;
-                    field_typ = type_type env (type_ident_star t (id,n));
+                    field_typ = type_type env id.id_loc (type_ident_star t (id,n));
                     shift = !i;
                 };
                 i := !i + 1;
@@ -211,26 +216,26 @@ let program (p: Ptree.file) =
         add_fields id.id env l;
         aux env q
     | (Ptree.Dfun d) :: q -> (
-        let fun_name = d.fun_name.id in
-        (if (Hashtbl.mem env.funs fun_name) then raise (Error ("function named "^fun_name^" defined twice")));
-        let fun_typ = type_type env d.fun_typ in
+        let fun_name = d.fun_name in
+        (if (Hashtbl.mem env.funs fun_name.id) then raise (Error (type_error fun_name.id_loc ^ "Function named "^fun_name.id^" is defined twice")));
+        let fun_typ = type_type env fun_name.id_loc d.fun_typ in
         let fun_formals = List.map
         (
-            fun ((pt,i):(Ptree.typ*Ptree.ident)) -> let tt = type_type env pt in
-            (if (Hashtbl.mem env.vars i.id) then raise (Error ("function "^fun_name^" has two arguments named "^i.id^""))
+            fun ((pt,i):(Ptree.typ*Ptree.ident)) -> let tt = type_type env i.id_loc pt in
+            (if (Hashtbl.mem env.vars i.id) then raise (Error (type_error fun_name.id_loc ^ "The function "^fun_name.id^" has two arguments named "^i.id))
             else Hashtbl.add env.vars i.id (tt, Iarg));
             (tt,i.id, Iarg)
         ) d.fun_formals in
-        Hashtbl.add env.funs fun_name {fun_typ=fun_typ;fun_name=fun_name;fun_formals=fun_formals;fun_body=([],[])};
+        Hashtbl.add env.funs fun_name.id {fun_typ=fun_typ;fun_name=fun_name.id;fun_formals=fun_formals;fun_body=([],[])};
         env.block_new_index := 0;
         let fun_body = type_block env d.fun_body in
         let ttree_dfun = {
           fun_typ = fun_typ;
-          fun_name = fun_name;
+          fun_name = fun_name.id;
           fun_formals = fun_formals;
           fun_body = fun_body;
         } in
-        Hashtbl.replace env.funs fun_name ttree_dfun;
+        Hashtbl.replace env.funs fun_name.id ttree_dfun;
         (List.iter (fun (t,i,vt) -> Hashtbl.remove env.vars i) fun_formals);
         ttree_dfun :: (aux env q)
       )
@@ -258,8 +263,8 @@ let program (p: Ptree.file) =
       };
    let funs = aux env p in
    (try let main_fun = Hashtbl.find env.funs "main" in
-   if ((List.length main_fun.fun_formals != 0) || not(type_equiv main_fun.fun_typ Tint)) then raise (Error "incorrect main function")
-   with Not_found -> raise (Error "main function missing"));
+   if ((List.length main_fun.fun_formals != 0) || not(type_equiv main_fun.fun_typ Tint)) then raise (Error "Typing error: incorrect main function")
+   with Not_found -> raise (Error "Typing error: main function missing"));
    {
      funs = funs;
    }
