@@ -22,7 +22,7 @@ let rec string_of_type = function
 
 let type_error (l: Ptree.loc) =
   let (a, b) = l in
-  "File " ^ escaped '"' ^ a.pos_fname ^ escaped '"' ^ ", line " ^ string_of_int a.pos_lnum ^ ", characters " ^ string_of_int (a.pos_cnum - a.pos_bol) ^ escaped '-' ^ string_of_int (b.pos_cnum - b.pos_bol) ^ "\n"
+  "line " ^ string_of_int a.pos_lnum ^ ", characters " ^ string_of_int (a.pos_cnum - a.pos_bol) ^ escaped '-' ^ string_of_int (b.pos_cnum - b.pos_bol) ^ "\n"
 
 let rec type_equiv t s =
   match (t, s) with
