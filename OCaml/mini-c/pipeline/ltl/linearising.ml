@@ -33,13 +33,13 @@ and instr g l = function
     | Maddi i -> emit l (addq (imm32 i) (operand op)); lin g l1
     | Msetei i ->
         emit l (cmpq (imm32 i) (operand op));
-        emit (Label.fresh ()) (sete (reg r11b));
-        emit (Label.fresh ()) (movzbq (reg r11b) r11);
-        emit (Label.fresh ()) (movq (reg r11) (operand op)); lin g l1
+        emit_wl (sete (reg r11b));
+        emit_wl (movzbq (reg r11b) r11);
+        emit_wl (movq (reg r11) (operand op)); lin g l1
     | Msetnei i ->
         emit l (cmpq (imm32 i) (operand op));
-        emit (Label.fresh ()) (setne (reg r11b));
-        emit (Label.fresh ()) (movzbq (reg r11b) r11); lin g l1
+        emit_wl (setne (reg r11b));
+        emit_wl (movzbq (reg r11b) r11); lin g l1
     end
   | Embinop (mbop, op1, op2, l1) ->
       begin match mbop with
@@ -47,7 +47,7 @@ and instr g l = function
       | Madd -> emit l (addq (operand op1) (operand op2)); lin g l1
       | Msub -> emit l (subq (operand op1) (operand op2)); lin g l1
       | Mmul -> emit l (imulq (operand op1) (operand op2)); lin g l1
-      | Mdiv -> emit (Label.fresh ()) cqto; emit l (idivq (operand op1)); lin g l1
+      | Mdiv -> emit_wl cqto; emit l (idivq (operand op1)); lin g l1
       | Msete
       | Msetne
       | Msetl
@@ -56,16 +56,16 @@ and instr g l = function
       | Msetge ->
         emit l (cmpq (operand op1) (operand op2));
           begin match mbop with
-          | Msete -> emit (Label.fresh ()) (sete (reg r11b));
-          | Msetne -> emit (Label.fresh ()) (setne (reg r11b));
-          | Msetl -> emit (Label.fresh ()) (setl (reg r11b));
-          | Msetle -> emit (Label.fresh ()) (setle (reg r11b));
-          | Msetg -> emit (Label.fresh ()) (setg (reg r11b));
-          | Msetge -> emit (Label.fresh ()) (setge (reg r11b));
+          | Msete -> emit_wl (sete (reg r11b));
+          | Msetne -> emit_wl (setne (reg r11b));
+          | Msetl -> emit_wl (setl (reg r11b));
+          | Msetle -> emit_wl (setle (reg r11b));
+          | Msetg -> emit_wl (setg (reg r11b));
+          | Msetge -> emit_wl (setge (reg r11b));
           | _ -> assert false
           end;
-        emit (Label.fresh ()) (movzbq (reg r11b) r11);
-        emit (Label.fresh ()) (movq (reg r11) (operand op2));
+        emit_wl (movzbq (reg r11b) r11);
+        emit_wl (movq (reg r11) (operand op2));
         lin g l1
       end
   | Emubranch (mub, op, l1, l2) ->
@@ -74,14 +74,14 @@ and instr g l = function
           let r = operand op in
           emit l (testq r r);
           need_label l1;
-          emit (Label.fresh ()) (je (l1 :> string));
+          emit_wl (je (l1 :> string));
           lin g l2;
           lin g l1;
       | Mjnz ->
           let r = operand op in
           emit l (testq r r);
           need_label l1;
-          emit (Label.fresh ()) (jne (l1 :> string));
+          emit_wl (jne (l1 :> string));
           lin g l2;
           lin g l1;
       | Mjlei i -> assert false
@@ -92,13 +92,13 @@ and instr g l = function
     | Mjl ->
         need_label l1;
         emit l (cmpq (operand op1) (operand op2));
-        emit (Label.fresh ()) (jl (l1 :> string));
+        emit_wl (jl (l1 :> string));
         lin g l2;
         lin g l1;
     | Mjle ->
         need_label l1;
         emit l (cmpq (operand op1) (operand op2));
-        emit (Label.fresh ()) (jle (l1 :> string));
+        emit_wl (jle (l1 :> string));
         lin g l2;
         lin g l1;
     end
