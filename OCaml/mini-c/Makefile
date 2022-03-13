@@ -2,7 +2,7 @@
 all:minic.exe
 
 test: minic.exe
-	./minic.exe --debug test.c
+	./minic.exe test.c
 
 minic.exe:
 	dune build minic.exe
