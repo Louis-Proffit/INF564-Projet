@@ -28,26 +28,6 @@ let rec map_instr c frame_size il = function
     | _ -> add il (Embinop (op, cr1, cr2, l))
     end
   end
-  | Ertltree.Emubranch (mu, r, l1, l2) ->
-    let cr = lookup c r in
-    begin match cr with
-    | Spilled i ->
-        let l = Label.fresh () in
-        add l (Emubranch(mu, Reg Register.tmp1, l1, l2));
-        add il (Embinop(Ops.Mmov, cr, Reg Register.tmp1, l))
-    | _ -> add il (Emubranch (mu, lookup c r, l1, l2))
-    end
-  | Ertltree.Embbranch (mb, r1, r2, l1, l2) ->
-  let cr1 = lookup c r1 in
-  let cr2 = lookup c r2 in
-  begin match (cr1,cr2) with
-      | (Spilled i, Spilled j) ->
-      let l = Label.fresh () in
-      add l (Embbranch(mb, cr1, Reg Register.tmp1, l1, l2));
-      add il (Embinop(Ops.Mmov, cr2, Reg Register.tmp1, l))
-      | _ -> add il (Embbranch (mb, cr1, cr2, l1, l2))
-  end
-
   | Ertltree.Emcbranch (f, l1, l2) -> add il (Emcbranch (f, l1, l2))
   | Ertltree.Euflags (r,l1) ->
   let cr = lookup c r in
@@ -58,15 +38,15 @@ let rec map_instr c frame_size il = function
         add il (Embinop(Ops.Mmov, cr, Reg Register.tmp1, l))
     | _ -> add il (Euflags (cr, l1))
   end
-  | Ertltree.Ebflags (f, r1, r2, l) ->
+  | Ertltree.Ebflags (r1, r2, l) ->
     let cr1 = lookup c r1 in
     let cr2 = lookup c r2 in
     begin match (cr1,cr2) with
         | (Spilled i, Spilled j) ->
         let l = Label.fresh () in
-        add l (Ebflags( f, cr1, Reg Register.tmp1, l));
+        add l (Ebflags(cr1, Reg Register.tmp1, l));
         add il (Embinop(Ops.Mmov, cr2, Reg Register.tmp1, l))
-        | _ -> add il (Ebflags( f, cr1, cr2, l)) (* TODO *)
+        | _ -> add il (Ebflags(cr1, cr2, l)) (* TODO *)
     end
   | Ertltree.Epush_param (r, l) -> add il (Epush (lookup c r, l))
   | Ertltree.Egoto l -> add il (Egoto l)

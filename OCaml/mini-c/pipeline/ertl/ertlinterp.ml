@@ -79,21 +79,6 @@ let rec exec st gr l =
   | Embinop (op, r1, r2, l) ->
     binop st op r1 r2;
     exec st gr l
-  | Emubranch (op, r, l1, l2) ->
-    let v = get st r in
-    let b = match op with
-      | Mjz     -> v = zero
-      | Mjnz    -> v <> zero
-      | Mjlei n -> v <= Int64.of_int32 n
-      | Mjgi n  -> v > Int64.of_int32 n in
-    exec st gr (if b then l1 else l2)
-  | Embbranch (op, r1, r2, l1, l2) ->
-    let v1 = get st r1 in
-    let v2 = get st r2 in
-    let b = match op with
-      | Mjl  -> v2 < v1
-      | Mjle -> v2 <= v1 in
-    exec st gr (if b then l1 else l2)
   | Ecall ("sbrk", _, l) ->
     let n = get st Register.rdi in
     let v = Machine.malloc st.mem (Int64.to_int n) in

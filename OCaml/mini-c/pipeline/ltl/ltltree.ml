@@ -27,12 +27,10 @@ type instr =
   | Econst of int32 * operand * label
   | Emunop of munop * operand * label
   | Embinop of mbinop * operand * operand * label
-  | Emubranch of mubranch * operand * label * label
-  | Embbranch of mbbranch * operand * operand * label * label
 
   | Emcbranch of flag * label * label (* Binary conditional branching *)
   | Euflags of operand * label (* Set the flags of the corresponding register *)
-  | Ebflags of flag * operand * operand * label (* Set the flags corresponding to two registers *)
+  | Ebflags of operand * operand * label (* Set the flags corresponding to two registers *)
 
   | Epush of operand * label
   (** légèrement modifiée *)
@@ -81,22 +79,15 @@ let print_instr fmt = function
   | Embinop (op, r1, r2, l) ->
       fprintf fmt "%a %a %a  --> %a"
 	print_mbinop op print_operand r1 print_operand r2 Label.print l
-  | Emubranch (op, r, l1, l2) ->
-      fprintf fmt "%a %a  --> %a, %a"
-	print_mubranch op print_operand r Label.print l1 Label.print l2
-  | Embbranch (op, r1, r2, l1, l2) ->
-      fprintf fmt "%a %a %a  --> %a, %a"
-	print_mbbranch op print_operand r1 print_operand r2
-        Label.print l1 Label.print l2
   | Emcbranch (f, l1, l2) ->
       fprintf fmt "jmp-flag(%a) --> %a %a "
           print_flag f Label.print l1 Label.print l2
   | Euflags (o,l) ->
       fprintf fmt "set-flag(%a) --> %a"
           print_operand o Label.print l
-  | Ebflags (f, o1, o2 ,l) ->
-        fprintf fmt "set-flag(%a) for %a %a --> %a"
-            Ops.print_flag f print_operand o1 print_operand o2 Label.print l
+  | Ebflags (o1, o2 ,l) ->
+        fprintf fmt "set flags for %a %a --> %a"
+            print_operand o1 print_operand o2 Label.print l
   | Epush (r, l) ->
       fprintf fmt "push %a  --> %a" print_operand r Label.print l
   | Epop (r, l) ->
@@ -118,11 +109,9 @@ let succ = function
   | Epop (_,l)
   | Ecall (_,l)
   | Euflags (_,l)
-  | Ebflags (_,_,_,l)
+  | Ebflags (_,_,l)
   | Egoto l ->
       [l]
-  | Emubranch (_,_,l1,l2)
-  | Embbranch (_,_,_,l1,l2)
   | Emcbranch (_,l1,l2) ->
       [l1; l2]
   | Ereturn ->

@@ -27,12 +27,10 @@ type instr =
   | Econst of int32 * operand * label
   | Emunop of munop * operand * label
   | Embinop of mbinop * operand * operand * label
-  | Emubranch of mubranch * operand * label * label
-  | Embbranch of mbbranch * operand * operand * label * label
 
   | Emcbranch of flag * label * label (* Binary conditional branching *)
   | Euflags of operand * label (* Set the flags of the corresponding register *)
-  | Ebflags of flag * operand * operand * label (* Set the flags corresponding to two registers *)
+  | Ebflags of operand * operand * label (* Set the flags corresponding to two registers *)
 
   | Epush of operand * label
   (** légèrement modifiée *)

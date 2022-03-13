@@ -68,40 +68,6 @@ and instr g l = function
         emit_wl (movq (reg r11) (operand op2));
         lin g l1
       end
-  | Emubranch (mub, op, l1, l2) ->
-      begin match mub with
-      | Mjz ->
-          let r = operand op in
-          emit l (testq r r);
-          need_label l1;
-          emit_wl (je (l1 :> string));
-          lin g l2;
-          lin g l1;
-      | Mjnz ->
-          let r = operand op in
-          emit l (testq r r);
-          need_label l1;
-          emit_wl (jne (l1 :> string));
-          lin g l2;
-          lin g l1;
-      | Mjlei i -> assert false
-      | Mjgi i -> assert false
-      end
-  | Embbranch (mbb, op1, op2, l1, l2) ->
-    begin match mbb with
-    | Mjl ->
-        need_label l1;
-        emit l (cmpq (operand op1) (operand op2));
-        emit_wl (jl (l1 :> string));
-        lin g l2;
-        lin g l1;
-    | Mjle ->
-        need_label l1;
-        emit l (cmpq (operand op1) (operand op2));
-        emit_wl (jle (l1 :> string));
-        lin g l2;
-        lin g l1;
-    end
   | Emcbranch (f, l1, l2) ->
     need_label l1;
     begin match f with
@@ -113,6 +79,7 @@ and instr g l = function
         | Mle -> emit l (jle (l1 :> string)); lin g l2; lin g l1
     end
   | Euflags (r,l1) -> emit l (testq (operand r) (operand r)); lin g l1
+  | Ebflags (r1, r2, l1) -> emit l (cmpq (operand r1) (operand r2)); lin g l1
   | Epush (r, l1) -> emit l (pushq (operand r)); lin g l1
   | Ecall (id, l1) -> emit l1 (call id); lin g l1
   | Epop (r,l1) -> emit l (popq (register64 r)); lin g l1

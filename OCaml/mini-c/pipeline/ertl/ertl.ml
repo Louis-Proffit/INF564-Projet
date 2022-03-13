@@ -16,12 +16,9 @@ let map_instr il = function
     add label_div (Embinop(Mdiv, r1, Register.rax, label_mov_end));
     add il (Embinop(Mmov, r2, Register.rax, label_div));
     | Rtltree.Embinop (mn,r1,r2,l) -> add il (Embinop (mn,r1,r2,l))
-    | Rtltree.Emubranch (mu,r,l1,l2) -> add il (Emubranch (mu,r,l1,l2))
-    | Rtltree.Embbranch (mb,r1,r2,l1,l2) -> add il (Embbranch (mb,r1,r2,l1,l2))
-
     | Rtltree.Emcbranch (f, l1, l2) -> add il (Emcbranch(f, l1, l2))
     | Rtltree.Euflags (r,l) -> add il (Euflags (r,l))
-    | Rtltree.Ebflags (f, r1, r2, l) -> add il (Ebflags (f, r1, r2, l))
+    | Rtltree.Ebflags (r1, r2, l) -> add il (Ebflags (r1, r2, l))
     | Rtltree.Ecall (r,i,rl,l) ->
     let count_on_stack = max ((List.length rl) - 6) 0 in
     let count_on_reg = (List.length rl) - count_on_stack in

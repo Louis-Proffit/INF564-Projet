@@ -73,6 +73,11 @@ let rec expr e destr destl =
     end
 
 
+(*
+destl est le label à suivre à la fin de l'instruction
+retr est le registre ou mettre le retour de la fonction
+exitl est le label à suivre après le return
+*)
 and stmt s destl retr exitl =
     begin match s with
     | IS.Sskip -> exitl
@@ -85,11 +90,33 @@ and stmt s destl retr exitl =
         let label_flag = generate(Euflags(expr_reg, label_jmp)) in
         expr e expr_reg label_flag
     | IS.Sif (e,s) ->
-        let expr_reg = Register.fresh () in
-        let stmt_label = stmt s destl retr exitl in
-        let label_jmp = generate(Emcbranch(Me, destl, stmt_label)) in
-        let label_flag = generate(Euflags(expr_reg, label_jmp)) in
-        expr e expr_reg label_flag
+        begin match e with
+        | IS.Ebinop(b, e1, e2) when b <> Band && b <> Bor ->
+            let expr_reg_1 = Register.fresh () in
+            let expr_reg_2 = Register.fresh () in
+            let stmt_label = stmt s destl retr exitl in
+            let label_jmp =
+            begin match b with
+                | Badd -> generate(Embinop(Madd, expr_reg_1, expr_reg_2, (generate(Emcbranch(Mne, stmt_label, destl)))))
+                | Bsub -> generate(Embinop(Msub, expr_reg_1, expr_reg_2, (generate(Emcbranch(Mne, stmt_label, destl)))))
+                | Bmul -> generate(Embinop(Mmul, expr_reg_1, expr_reg_2, (generate(Emcbranch(Mne, stmt_label, destl)))))
+                | Bdiv -> generate(Embinop(Mdiv, expr_reg_1, expr_reg_2, (generate(Emcbranch(Mne, stmt_label, destl)))))
+                | Beq -> generate(Ebflags(expr_reg_1, expr_reg_2, (generate(Emcbranch(Me, stmt_label, destl)))))
+                | Bneq -> generate(Ebflags(expr_reg_1, expr_reg_2, (generate(Emcbranch(Mne, stmt_label, destl)))))
+                | Blt -> generate(Ebflags(expr_reg_1, expr_reg_2, (generate(Emcbranch(Mg, stmt_label, destl)))))
+                | Ble -> generate(Ebflags(expr_reg_1, expr_reg_2, (generate(Emcbranch(Mge, stmt_label, destl)))))
+                | Bgt -> generate(Ebflags(expr_reg_1, expr_reg_2, (generate(Emcbranch(Ml, stmt_label, destl)))))
+                | Bge -> generate(Ebflags(expr_reg_1, expr_reg_2, (generate(Emcbranch(Mle, stmt_label, destl)))))
+            end in
+            let label_expr = expr e2 expr_reg_2 label_jmp in
+            expr e1 expr_reg_1 label_expr
+        | _ ->
+            let expr_reg = Register.fresh () in
+            let stmt_label = stmt s destl retr exitl in
+            let label_jmp = generate(Emcbranch(Me, destl, stmt_label)) in
+            let label_flag = generate(Euflags(expr_reg, label_jmp)) in
+            expr e expr_reg label_flag
+        end
     | IS.Swhile (e,s) ->
         let expr_reg = Register.fresh () in
         let flag_label = Label.fresh () in
